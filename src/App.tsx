@@ -93,9 +93,9 @@ function AppShell() {
 
   return (
     <BrowserRouter>
-      <TournamentProvider game={currentGame}>
-        <AuthProvider>
-          <ToastProvider>
+      <ToastProvider>
+        <TournamentProvider game={currentGame}>
+          <AuthProvider>
             <Routes>
               {/* Public routes — no login required */}
               <Route path="/" element={<LeaderboardPage />} />
@@ -378,9 +378,9 @@ function AppShell() {
                 }
               />
             </Routes>
-          </ToastProvider>
-        </AuthProvider>
-      </TournamentProvider>
+          </AuthProvider>
+        </TournamentProvider>
+      </ToastProvider>
     </BrowserRouter>
   );
 }
