@@ -724,3 +724,6 @@ const __originkitPresetProps = {
 export default function DriftingLeftSmooth(props: Record<string, unknown>) {
   return <__OriginkitBase_DriftingLeftSmooth {...(__originkitPresetProps as Record<string, unknown>)} {...props} />;
 }
+export function TwistRibbon(props: Record<string, unknown>) {
+  return <DriftingLeftSmooth {...props} />;
+}
