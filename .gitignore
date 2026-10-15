@@ -1,0 +1,11 @@
+node_modules/
+.env
+.env.local
+.env.*.local
+dist/
+build/
+.antigravity/
+.vscode/
+.DS_Store
+*.log
+bun.lock

@@ -1,0 +1,20 @@
+User-agent: *
+Allow: /
+Allow: /analytics
+Allow: /register
+Allow: /public
+Allow: /rules
+Allow: /faq
+Allow: /contact
+
+Disallow: /admin
+Disallow: /creator
+Disallow: /settings
+Disallow: /admin/*
+Disallow: /api/*
+
+# Crawl-delay (be gentle)
+Crawl-delay: 10
+
+# Sitemap
+Sitemap: https://tournament-tracker-prod.ai.studio/sitemap.xml

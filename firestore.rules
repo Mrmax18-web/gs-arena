@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ADMIN CHECK
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.token.email in [
+          'dheerajsinghbaghel65@gmail.com',
+          'dheerajsinghbaghel1306@gmail.com',
+          'gsarena704@gmail.com'
+        ] || (
+          exists(/databases/$(database)/documents/config/creator) &&
+          request.auth.token.email == get(/databases/$(database)/documents/config/creator).data.creatorEmail
+        )
+      );
+    }
+
+    match /tournaments/{tid} {
+      allow read: if true;
+      allow create, update, delete: if true;
+      
+      match /{document=**} {
+        allow read: if true;
+        allow create, update, delete: if true;
+      }
+    }
+
+    match /registrations/{rid} {
+      allow create, read, update, delete: if true;
+    }
+
+    match /adminRequests/{rid} {
+      allow create: if true;
+      allow read: if true;
+      allow update, delete: if true;
+    }
+
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /audit/{aid} {
+      allow create, read, update, delete: if true;
+    }
+
+    match /test-ping/{tid} {
+      allow read, write: if true;
+    }
+  }
+}
