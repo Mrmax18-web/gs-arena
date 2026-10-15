@@ -5,7 +5,7 @@ import { Header } from './Header';
 import { Footer } from './Footer';
 import { CosmicBackground } from '../CosmicBackground';
 import { FloatingOrbs } from '../ui/FloatingOrbs';
-import { TournamentProvider, useTournament } from '../../context/TournamentContext';
+import { useTournament } from '../../context/TournamentContext';
 import { useGame } from '../../context/GameContext';
 import { useBranding } from '../../hooks/useBranding';
 import type { Game, Tournament } from '../../types';
@@ -57,7 +57,7 @@ function LayoutContent() {
           className="fixed inset-0 z-0 pointer-events-none overflow-hidden opacity-70"
           aria-hidden="true"
         >
-      
+    
         </div>
       ) : (
         <div
@@ -98,11 +98,5 @@ function LayoutContent() {
 }
 
 export function Layout() {
-  const { currentGame } = useGame();
-
-  return (
-    <TournamentProvider game={currentGame}>
-      <LayoutContent />
-    </TournamentProvider>
-  );
+  return <LayoutContent />;
 }

@@ -1,7 +1,8 @@
 import React, { Suspense, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { ShieldAlert } from 'lucide-react';
-import { GameProvider } from './context/GameContext';
+import { GameProvider, useGame } from './context/GameContext';
+import { TournamentProvider } from './context/TournamentContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { Layout } from './components/layout/Layout';
@@ -87,299 +88,308 @@ export function RequireAdmin({ children }: RequireAdminProps) {
   return <>{children}</>;
 }
 
+function AppShell() {
+  const { currentGame } = useGame();
+
+  return (
+    <BrowserRouter>
+      <TournamentProvider game={currentGame}>
+        <AuthProvider>
+          <ToastProvider>
+            <Routes>
+              {/* Public routes — no login required */}
+              <Route path="/" element={<LeaderboardPage />} />
+              <Route path="/landing" element={<Navigate to="/" replace />} />
+              <Route path="/public" element={<Navigate to="/" replace />} />
+
+              {/* Standalone Public Registration */}
+              <Route
+                path="/register"
+                element={
+                  <ErrorBoundary fallbackTitle="Registration Portal Unavailable">
+                    <PublicRegistrationPage />
+                  </ErrorBoundary>
+                }
+              />
+
+              {/* Standalone Administrator Sign In Page */}
+              <Route
+                path="/login"
+                element={
+                  <ErrorBoundary fallbackTitle="Admin Authentication Unavailable">
+                    <AdminAuthPage />
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="/admin/login"
+                element={
+                  <ErrorBoundary fallbackTitle="Admin Authentication Unavailable">
+                    <AdminAuthPage />
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="/auth"
+                element={
+                  <ErrorBoundary fallbackTitle="Admin Authentication Unavailable">
+                    <AdminAuthPage />
+                  </ErrorBoundary>
+                }
+              />
+
+              {/* Standalone Read-Only Public Viewer */}
+              <Route
+                path="/public"
+                element={
+                  <ErrorBoundary fallbackTitle="Public Viewer Unavailable">
+                    <PublicViewerPage />
+                  </ErrorBoundary>
+                }
+              />
+
+              {/* Secret Creator Master Console */}
+              <Route
+                path="/creator"
+                element={
+                  <ErrorBoundary fallbackTitle="Creator Console Unavailable">
+                    <CreatorPanelPage />
+                  </ErrorBoundary>
+                }
+              />
+
+              {/* Main App Layout (Leaderboard, Analytics, Admin Panels) */}
+              <Route element={<Layout />}>
+                <Route
+                  path="/leaderboard"
+                  element={
+                    <ErrorBoundary fallbackTitle="Leaderboard Unavailable">
+                      <LeaderboardPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="/analytics"
+                  element={
+                    <ErrorBoundary fallbackTitle="Analytics Unavailable">
+                      <AnalyticsPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="/rules"
+                  element={
+                    <ErrorBoundary fallbackTitle="Rules & Regulations Unavailable">
+                      <RulesPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="/faq"
+                  element={
+                    <ErrorBoundary fallbackTitle="FAQ & Support Unavailable">
+                      <FAQPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="/contact"
+                  element={
+                    <ErrorBoundary fallbackTitle="Contact & Inquiries Unavailable">
+                      <ContactPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="/request-admin"
+                  element={
+                    <ErrorBoundary fallbackTitle="Admin Access Request Unavailable">
+                      <RequestAdminPage />
+                    </ErrorBoundary>
+                  }
+                />
+
+                {/* Clash Squad League Routes */}
+                <Route
+                  path="/cs-standings"
+                  element={
+                    <ErrorBoundary fallbackTitle="Standings Unavailable">
+                      <CSLeagueStandingsPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="/cs-bracket"
+                  element={
+                    <ErrorBoundary fallbackTitle="Bracket Unavailable">
+                      <CSBracketPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="/cs-playoffs"
+                  element={
+                    <ErrorBoundary fallbackTitle="Playoffs Unavailable">
+                      <CSPlayoffBracketPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="/cs-groups"
+                  element={
+                    <RequireAdmin>
+                      <ErrorBoundary fallbackTitle="Group Manager Unavailable">
+                        <CSGroupManagerPage />
+                      </ErrorBoundary>
+                    </RequireAdmin>
+                  }
+                />
+                <Route
+                  path="/cs-results"
+                  element={
+                    <RequireAdmin>
+                      <ErrorBoundary fallbackTitle="Match Results Unavailable">
+                        <CSMatchResultsPage />
+                      </ErrorBoundary>
+                    </RequireAdmin>
+                  }
+                />
+
+                {/* Battle Royale Admin Routes */}
+                <Route
+                  path="/registration"
+                  element={
+                    <RequireAdmin>
+                      <ErrorBoundary fallbackTitle="Registration Management Unavailable">
+                        <RegistrationPage />
+                      </ErrorBoundary>
+                    </RequireAdmin>
+                  }
+                />
+                <Route
+                  path="/approvals"
+                  element={
+                    <RequireAdmin>
+                      <ErrorBoundary fallbackTitle="Approval Queue Unavailable">
+                        <ApprovalQueuePage />
+                      </ErrorBoundary>
+                    </RequireAdmin>
+                  }
+                />
+                <Route
+                  path="/matches"
+                  element={
+                    <RequireAdmin>
+                      <ErrorBoundary fallbackTitle="Match Results Unavailable">
+                        <MatchResultsPage />
+                      </ErrorBoundary>
+                    </RequireAdmin>
+                  }
+                />
+                <Route
+                  path="/activity"
+                  element={
+                    <RequireAdmin>
+                      <ErrorBoundary fallbackTitle="Activity Log Unavailable">
+                        <ActivityLogPage />
+                      </ErrorBoundary>
+                    </RequireAdmin>
+                  }
+                />
+                <Route
+                  path="/admin/data"
+                  element={
+                    <RequireAdmin>
+                      <ErrorBoundary fallbackTitle="Data Backup Unavailable">
+                        <AdminDataPage />
+                      </ErrorBoundary>
+                    </RequireAdmin>
+                  }
+                />
+                <Route
+                  path="/admin/registration"
+                  element={
+                    <RequireAdmin>
+                      <ErrorBoundary fallbackTitle="Registration Management Unavailable">
+                        <RegistrationPage />
+                      </ErrorBoundary>
+                    </RequireAdmin>
+                  }
+                />
+                <Route
+                  path="/admin/approvals"
+                  element={
+                    <RequireAdmin>
+                      <ErrorBoundary fallbackTitle="Approval Queue Unavailable">
+                        <ApprovalQueuePage />
+                      </ErrorBoundary>
+                    </RequireAdmin>
+                  }
+                />
+                <Route
+                  path="/admin/matches"
+                  element={
+                    <RequireAdmin>
+                      <ErrorBoundary fallbackTitle="Match Results Unavailable">
+                        <MatchResultsPage />
+                      </ErrorBoundary>
+                    </RequireAdmin>
+                  }
+                />
+                <Route
+                  path="/admin/activity"
+                  element={
+                    <RequireAdmin>
+                      <ErrorBoundary fallbackTitle="Activity Log Unavailable">
+                        <ActivityLogPage />
+                      </ErrorBoundary>
+                    </RequireAdmin>
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    <RequireAdmin>
+                      <ErrorBoundary fallbackTitle="Settings Unavailable">
+                        <AdminSettingsPage />
+                      </ErrorBoundary>
+                    </RequireAdmin>
+                  }
+                />
+                <Route
+                  path="/admin/settings"
+                  element={
+                    <RequireAdmin>
+                      <ErrorBoundary fallbackTitle="Settings Unavailable">
+                        <AdminSettingsPage />
+                      </ErrorBoundary>
+                    </RequireAdmin>
+                  }
+                />
+              </Route>
+
+              {/* 404 Fallback */}
+              <Route
+                path="*"
+                element={
+                  <ErrorBoundary fallbackTitle="Page Not Found">
+                    <NotFoundPage />
+                  </ErrorBoundary>
+                }
+              />
+            </Routes>
+          </ToastProvider>
+        </AuthProvider>
+      </TournamentProvider>
+    </BrowserRouter>
+  );
+}
+
 export function App() {
   return (
     <ErrorBoundary isGlobal fallbackTitle="Application Rendering Notice">
       <GameProvider>
-        <BrowserRouter>
-          <AuthProvider>
-            <ToastProvider>
-              <Routes>
-                {/* Public routes — no login required */}
-<Route path="/" element={<LeaderboardPage />} />
-<Route path="/landing" element={<Navigate to="/" replace />} />
-<Route path="/public" element={<Navigate to="/" replace />} />
-                
-
-                {/* Standalone Public Registration */}
-                <Route
-                  path="/register"
-                  element={
-                    <ErrorBoundary fallbackTitle="Registration Portal Unavailable">
-                      <PublicRegistrationPage />
-                    </ErrorBoundary>
-                  }
-                />
-
-                {/* Standalone Administrator Sign In Page */}
-                <Route
-                  path="/login"
-                  element={
-                    <ErrorBoundary fallbackTitle="Admin Authentication Unavailable">
-                      <AdminAuthPage />
-                    </ErrorBoundary>
-                  }
-                />
-                <Route
-                  path="/admin/login"
-                  element={
-                    <ErrorBoundary fallbackTitle="Admin Authentication Unavailable">
-                      <AdminAuthPage />
-                    </ErrorBoundary>
-                  }
-                />
-                <Route
-                  path="/auth"
-                  element={
-                    <ErrorBoundary fallbackTitle="Admin Authentication Unavailable">
-                      <AdminAuthPage />
-                    </ErrorBoundary>
-                  }
-                />
-
-                {/* Standalone Read-Only Public Viewer */}
-                <Route
-                  path="/public"
-                  element={
-                    <ErrorBoundary fallbackTitle="Public Viewer Unavailable">
-                      <PublicViewerPage />
-                    </ErrorBoundary>
-                  }
-                />
-
-                {/* Secret Creator Master Console */}
-                <Route
-                  path="/creator"
-                  element={
-                    <ErrorBoundary fallbackTitle="Creator Console Unavailable">
-                      <CreatorPanelPage />
-                    </ErrorBoundary>
-                  }
-                />
-
-                {/* Main App Layout (Leaderboard, Analytics, Admin Panels) */}
-                <Route element={<Layout />}>
-                  <Route
-                    path="/leaderboard"
-                    element={
-                      <ErrorBoundary fallbackTitle="Leaderboard Unavailable">
-                        <LeaderboardPage />
-                      </ErrorBoundary>
-                    }
-                  />
-                  <Route
-                    path="/analytics"
-                    element={
-                      <ErrorBoundary fallbackTitle="Analytics Unavailable">
-                        <AnalyticsPage />
-                      </ErrorBoundary>
-                    }
-                  />
-                  <Route
-                    path="/rules"
-                    element={
-                      <ErrorBoundary fallbackTitle="Rules & Regulations Unavailable">
-                        <RulesPage />
-                      </ErrorBoundary>
-                    }
-                  />
-                  <Route
-                    path="/faq"
-                    element={
-                      <ErrorBoundary fallbackTitle="FAQ & Support Unavailable">
-                        <FAQPage />
-                      </ErrorBoundary>
-                    }
-                  />
-                  <Route
-                    path="/contact"
-                    element={
-                      <ErrorBoundary fallbackTitle="Contact & Inquiries Unavailable">
-                        <ContactPage />
-                      </ErrorBoundary>
-                    }
-                  />
-                  <Route
-                    path="/request-admin"
-                    element={
-                      <ErrorBoundary fallbackTitle="Admin Access Request Unavailable">
-                        <RequestAdminPage />
-                      </ErrorBoundary>
-                    }
-                  />
-
-                  {/* Clash Squad League Routes */}
-                  <Route
-                    path="/cs-standings"
-                    element={
-                      <ErrorBoundary fallbackTitle="Standings Unavailable">
-                        <CSLeagueStandingsPage />
-                      </ErrorBoundary>
-                    }
-                  />
-                  <Route
-                    path="/cs-bracket"
-                    element={
-                      <ErrorBoundary fallbackTitle="Bracket Unavailable">
-                        <CSBracketPage />
-                      </ErrorBoundary>
-                    }
-                  />
-                  <Route
-                    path="/cs-playoffs"
-                    element={
-                      <ErrorBoundary fallbackTitle="Playoffs Unavailable">
-                        <CSPlayoffBracketPage />
-                      </ErrorBoundary>
-                    }
-                  />
-                  <Route
-                    path="/cs-groups"
-                    element={
-                      <RequireAdmin>
-                        <ErrorBoundary fallbackTitle="Group Manager Unavailable">
-                          <CSGroupManagerPage />
-                        </ErrorBoundary>
-                      </RequireAdmin>
-                    }
-                  />
-                  <Route
-                    path="/cs-results"
-                    element={
-                      <RequireAdmin>
-                        <ErrorBoundary fallbackTitle="Match Results Unavailable">
-                          <CSMatchResultsPage />
-                        </ErrorBoundary>
-                      </RequireAdmin>
-                    }
-                  />
-
-                  {/* Battle Royale Admin Routes */}
-                  <Route
-                    path="/registration"
-                    element={
-                      <RequireAdmin>
-                        <ErrorBoundary fallbackTitle="Registration Management Unavailable">
-                          <RegistrationPage />
-                        </ErrorBoundary>
-                      </RequireAdmin>
-                    }
-                  />
-                  <Route
-                    path="/approvals"
-                    element={
-                      <RequireAdmin>
-                        <ErrorBoundary fallbackTitle="Approval Queue Unavailable">
-                          <ApprovalQueuePage />
-                        </ErrorBoundary>
-                      </RequireAdmin>
-                    }
-                  />
-                  <Route
-                    path="/matches"
-                    element={
-                      <RequireAdmin>
-                        <ErrorBoundary fallbackTitle="Match Results Unavailable">
-                          <MatchResultsPage />
-                        </ErrorBoundary>
-                      </RequireAdmin>
-                    }
-                  />
-                  <Route
-                    path="/activity"
-                    element={
-                      <RequireAdmin>
-                        <ErrorBoundary fallbackTitle="Activity Log Unavailable">
-                          <ActivityLogPage />
-                        </ErrorBoundary>
-                      </RequireAdmin>
-                    }
-                  />
-                  <Route
-                    path="/admin/data"
-                    element={
-                      <RequireAdmin>
-                        <ErrorBoundary fallbackTitle="Data Backup Unavailable">
-                          <AdminDataPage />
-                        </ErrorBoundary>
-                      </RequireAdmin>
-                    }
-                  />
-                  <Route
-                    path="/admin/registration"
-                    element={
-                      <RequireAdmin>
-                        <ErrorBoundary fallbackTitle="Registration Management Unavailable">
-                          <RegistrationPage />
-                        </ErrorBoundary>
-                      </RequireAdmin>
-                    }
-                  />
-                  <Route
-                    path="/admin/approvals"
-                    element={
-                      <RequireAdmin>
-                        <ErrorBoundary fallbackTitle="Approval Queue Unavailable">
-                          <ApprovalQueuePage />
-                        </ErrorBoundary>
-                      </RequireAdmin>
-                    }
-                  />
-                  <Route
-                    path="/admin/matches"
-                    element={
-                      <RequireAdmin>
-                        <ErrorBoundary fallbackTitle="Match Results Unavailable">
-                          <MatchResultsPage />
-                        </ErrorBoundary>
-                      </RequireAdmin>
-                    }
-                  />
-                  <Route
-                    path="/admin/activity"
-                    element={
-                      <RequireAdmin>
-                        <ErrorBoundary fallbackTitle="Activity Log Unavailable">
-                          <ActivityLogPage />
-                        </ErrorBoundary>
-                      </RequireAdmin>
-                    }
-                  />
-                  <Route
-                    path="/settings"
-                    element={
-                      <RequireAdmin>
-                        <ErrorBoundary fallbackTitle="Settings Unavailable">
-                          <AdminSettingsPage />
-                        </ErrorBoundary>
-                      </RequireAdmin>
-                    }
-                  />
-                  <Route
-                    path="/admin/settings"
-                    element={
-                      <RequireAdmin>
-                        <ErrorBoundary fallbackTitle="Settings Unavailable">
-                          <AdminSettingsPage />
-                        </ErrorBoundary>
-                      </RequireAdmin>
-                    }
-                  />
-                </Route>
-
-                {/* 404 Fallback */}
-                <Route
-                  path="*"
-                  element={
-                    <ErrorBoundary fallbackTitle="Page Not Found">
-                      <NotFoundPage />
-                    </ErrorBoundary>
-                  }
-                />
-              </Routes>
-            </ToastProvider>
-          </AuthProvider>
-        </BrowserRouter>
+        <AppShell />
       </GameProvider>
     </ErrorBoundary>
   );
