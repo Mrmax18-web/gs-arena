@@ -1,39 +1,26 @@
-import React, { useState, useEffect } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
-import {
-  Trophy,
-  BarChart3,
-  UserPlus,
-  CheckSquare,
-  CreditCard,
-  Swords,
-  Settings,
-  Shield,
-  Database,
-  Menu,
-  X,
-  Flame,
-  Gamepad2,
-  Check,
-  FileText,
-  HelpCircle,
-  Headphones,
-  History,
-  Globe,
-  Copy,
-  ExternalLink,
-  RefreshCw,
-  ShieldAlert,
-} from 'lucide-react';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import React, { useState, useId } from 'react';
+import { Link, useLocation, matchPath, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Menu, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { useGame } from '../../context/GameContext';
-import { SidebarUserIcon } from '../SidebarUserIcon';
-import { CreatorBulb } from '../creator/CreatorDot';
-import { copyToClipboard } from '../../lib/clipboard';
-import { useBranding } from '../../hooks/useBranding';
-import { useConnectionStatus } from '../../hooks/useConnectionStatus';
+import { useCreator } from '../../hooks/useCreator';
+import {
+  StarburstLogo,
+  IconRanking,
+  IconChart,
+  IconDocument,
+  IconHelp,
+  IconUserPlus,
+  IconApprovals,
+  IconMatches,
+  IconStandings,
+  IconBracket,
+  IconGroups,
+  IconActivity,
+  IconSettings,
+  IconCreatorBulb,
+  IconLogout,
+} from '../../lib/icons';
 import { cn } from '../../lib/cn';
 import type { Game } from '../../types';
 
@@ -41,537 +28,420 @@ export interface SidebarProps {
   currentGame?: Game;
 }
 
-export function Sidebar({ currentGame: propCurrentGame }: SidebarProps) {
-  const { currentGame: contextCurrentGame, currentMode, clearGame } = useGame();
-  const currentGame = propCurrentGame || contextCurrentGame;
+interface NavItem {
+  id: string;
+  label: string;
+  path: string;
+  matchPatterns: string[];
+  icon: (props: { className?: string; size?: number }) => React.ReactElement;
+  adminOnly?: boolean;
+  creatorOnly?: boolean;
+}
+
+const NAV_ITEMS: NavItem[] = [
+  // Public Section
+  {
+    id: 'leaderboard',
+    label: 'Leaderboard',
+    path: '/',
+    matchPatterns: ['/', '/leaderboard', '/public', '/landing'],
+    icon: IconRanking,
+  },
+  {
+    id: 'analytics',
+    label: 'Analytics',
+    path: '/analytics',
+    matchPatterns: ['/analytics'],
+    icon: IconChart,
+  },
+  {
+    id: 'rules',
+    label: 'Rules',
+    path: '/rules',
+    matchPatterns: ['/rules'],
+    icon: IconDocument,
+  },
+  {
+    id: 'faq',
+    label: 'FAQ',
+    path: '/faq',
+    matchPatterns: ['/faq'],
+    icon: IconHelp,
+  },
+
+  // BR Management (Admin)
+  {
+    id: 'registration',
+    label: 'Registration',
+    path: '/registration',
+    matchPatterns: ['/registration', '/admin/registration', '/register'],
+    icon: IconUserPlus,
+    adminOnly: true,
+  },
+  {
+    id: 'approvals',
+    label: 'Approvals',
+    path: '/approvals',
+    matchPatterns: ['/approvals', '/admin/approvals'],
+    icon: IconApprovals,
+    adminOnly: true,
+  },
+  {
+    id: 'matches',
+    label: 'Matches',
+    path: '/matches',
+    matchPatterns: ['/matches', '/admin/matches', '/cs-results'],
+    icon: IconMatches,
+    adminOnly: true,
+  },
+
+  // Clash Squad Management (Admin/Public Standings)
+  {
+    id: 'cs-standings',
+    label: 'CS Standings',
+    path: '/cs-standings',
+    matchPatterns: ['/cs-standings'],
+    icon: IconStandings,
+  },
+  {
+    id: 'cs-bracket',
+    label: 'CS Bracket',
+    path: '/cs-bracket',
+    matchPatterns: ['/cs-bracket', '/cs-playoffs'],
+    icon: IconBracket,
+  },
+  {
+    id: 'cs-groups',
+    label: 'CS Groups',
+    path: '/cs-groups',
+    matchPatterns: ['/cs-groups'],
+    icon: IconGroups,
+    adminOnly: true,
+  },
+
+  // Audit & Settings (Admin)
+  {
+    id: 'activity',
+    label: 'Activity',
+    path: '/activity',
+    matchPatterns: ['/activity', '/admin/activity'],
+    icon: IconActivity,
+    adminOnly: true,
+  },
+  {
+    id: 'settings',
+    label: 'Settings',
+    path: '/settings',
+    matchPatterns: ['/settings', '/admin/settings', '/admin/data', '/request-admin'],
+    icon: IconSettings,
+    adminOnly: true,
+  },
+
+  // Creator
+  {
+    id: 'creator',
+    label: 'Creator Console',
+    path: '/creator',
+    matchPatterns: ['/creator'],
+    icon: IconCreatorBulb,
+    creatorOnly: true,
+  },
+];
+
+/**
+ * Matches the current pathname to a navigation item ID using route patterns.
+ */
+export function getActiveNavItemId(pathname: string): string | null {
+  for (const item of NAV_ITEMS) {
+    for (const pattern of item.matchPatterns) {
+      if (matchPath({ path: pattern, end: true }, pathname)) {
+        return item.id;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * REFERENCE-A Dark Rail Sidebar.
+ * Fixed 76px desktop rail (#000000) with active breakout pill (88x52px),
+ * 2px accent ring, and concave fillets melting into the rail.
+ * Mobile (<768px): 56px bottom bar with primary items and swipeable More drawer.
+ */
+export function Sidebar({ currentGame: _unused }: SidebarProps) {
+  const location = useLocation();
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
-  const { branding } = useBranding();
-  const connectionStatus = useConnectionStatus();
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [pendingApprovalsCount, setPendingApprovalsCount] = useState<number>(0);
-  const [copiedPublicUrl, setCopiedPublicUrl] = useState(false);
+  const { user, isAdmin, signOut } = useAuth();
+  const { isCreatorUnlocked } = useCreator();
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const activeItemId = getActiveNavItemId(location.pathname);
 
-  useEffect(() => {
-    if (!isAdmin) return;
-    try {
-      const regQ = query(
-        collection(db, 'registrations'),
-        where('status', '==', 'pending'),
-        where('game', '==', currentGame)
-      );
-      const unsubReg = onSnapshot(
-        regQ,
-        (snap) => {
-          setPendingApprovalsCount(snap.size);
-        },
-        () => {}
-      );
+  const hasAdmin = isAdmin || isCreatorUnlocked;
 
-      return () => {
-        unsubReg();
-      };
-    } catch {
-      // Graceful fallback if collections not initialized
-    }
-  }, [isAdmin, currentGame]);
+  // Filter accessible items based on user role
+  const visibleItems = NAV_ITEMS.filter((item) => {
+    if (item.creatorOnly) return isCreatorUnlocked;
+    if (item.adminOnly) return hasAdmin;
+    return true;
+  });
 
-  const handleCopyPublicUrl = async () => {
-    const gameParam = currentGame ? `?game=${encodeURIComponent(currentGame)}` : '';
-    const url = typeof window !== 'undefined' ? `${window.location.origin}/public${gameParam}` : `/public${gameParam}`;
-    const success = await copyToClipboard(url);
-    if (success) {
-      setCopiedPublicUrl(true);
-      setTimeout(() => setCopiedPublicUrl(false), 2500);
-    }
-  };
-
-  const navItems = [
-    {
-      to: '/leaderboard',
-      label: 'Leaderboard',
-      icon: Trophy,
-      adminOnly: false,
-    },
-    {
-      to: '/register',
-      label: 'Register Squad',
-      icon: UserPlus,
-      adminOnly: false,
-    },
-    {
-      to: '/analytics',
-      label: 'Analytics',
-      icon: BarChart3,
-      adminOnly: false,
-    },
-    {
-      to: `/public?game=${encodeURIComponent(currentGame)}`,
-      label: 'Public Viewer',
-      icon: Globe,
-      adminOnly: false,
-    },
-    {
-      to: '/rules',
-      label: 'Rules',
-      icon: FileText,
-      adminOnly: false,
-    },
-    {
-      to: '/faq',
-      label: 'FAQ & Help',
-      icon: HelpCircle,
-      adminOnly: false,
-    },
-    {
-      to: '/contact',
-      label: 'Contact',
-      icon: Headphones,
-      adminOnly: false,
-    },
-    {
-      to: '/request-admin',
-      label: 'Request Admin',
-      icon: ShieldAlert,
-      adminOnly: false,
-    },
-    {
-      to: '/registration',
-      label: 'Registration Mgmt',
-      icon: Shield,
-      adminOnly: true,
-    },
-    {
-      to: '/approvals',
-      label: 'Approval Queue',
-      icon: CheckSquare,
-      adminOnly: true,
-      badge: pendingApprovalsCount,
-    },
-    {
-      to: '/matches',
-      label: 'Match Results',
-      icon: Swords,
-      adminOnly: true,
-    },
-    {
-      to: '/activity',
-      label: 'Activity Log',
-      icon: History,
-      adminOnly: true,
-    },
-    {
-      to: '/admin/data',
-      label: 'Data & Backup',
-      icon: Database,
-      adminOnly: true,
-    },
-    {
-      to: '/settings',
-      label: 'Admin Settings',
-      icon: Settings,
-      adminOnly: true,
-    },
-  ];
-
-  const csNavItems = [
-    {
-      to: '/cs-standings',
-      label: 'CS Standings',
-      icon: Trophy,
-      adminOnly: false,
-    },
-    {
-      to: '/cs-bracket',
-      label: 'CS Bracket',
-      icon: Swords,
-      adminOnly: false,
-    },
-    {
-      to: '/cs-playoffs',
-      label: 'CS Finals Tree',
-      icon: Flame,
-      adminOnly: false,
-    },
-    {
-      to: '/cs-groups',
-      label: 'CS Group Manager',
-      icon: CheckSquare,
-      adminOnly: true,
-    },
-    {
-      to: '/cs-results',
-      label: 'CS Match Results',
-      icon: Swords,
-      adminOnly: true,
-    },
-  ];
-
-  const visibleNavItems = navItems.filter((item) => !item.adminOnly || isAdmin);
-  const visibleCSNavItems = csNavItems.filter((item) => !item.adminOnly || isAdmin);
-
-  const brandName = branding.brandName || 'GS ARENA';
-  const logoSrc = branding.headerLogo || '/gs-arena-logo.png';
-  const brandTagline = branding.brandTagline || 'Esports Circuit';
-  const initials = brandName
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0].toUpperCase())
-    .join('') || 'GS';
-
-  const sidebarContent = (
-    <div className="relative flex flex-col h-full justify-between">
-      {/* Top Header & Branding */}
-      <div>
-        <div className="flex items-center justify-between pb-4 border-b border-white/10">
-          <div className="flex items-center gap-3 px-1 min-w-0">
-            <div className="relative shrink-0">
-              <img
-                src={logoSrc}
-                alt={brandName}
-                className="w-10 h-10 rounded-lg object-contain bg-black/60 p-0.5 border border-orange-500/30 drop-shadow-[0_0_8px_rgba(255,107,53,0.4)]"
-                onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
-                  const fb = (e.target as HTMLElement).parentElement?.querySelector('.sidebar-logo-fb') as HTMLElement;
-                  if (fb) fb.style.display = 'flex';
-                }}
-              />
-              <div className="sidebar-logo-fb hidden w-10 h-10 rounded-lg bg-gradient-to-tr from-red-600 via-orange-500 to-amber-500 items-center justify-center text-white font-black text-xs font-['Teko',sans-serif] text-base">
-                {initials}
-              </div>
-            </div>
-            <div className="min-w-0">
-              <div className="text-lg font-black tracking-tight bg-gradient-to-r from-white via-orange-100 to-amber-200 bg-clip-text text-transparent font-['Teko',sans-serif] text-2xl leading-none truncate">
-                {brandName}
-              </div>
-              <div className="text-[10px] uppercase tracking-widest text-orange-400 font-bold flex items-center gap-1.5 mt-0.5 truncate">
-                <span className="truncate">{brandTagline}</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <SidebarUserIcon />
-            <button
-              type="button"
-              onClick={() => setMobileOpen(false)}
-              className="md:hidden p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-300 hover:text-white hover:bg-white/10 cursor-pointer"
-              aria-label="Close navigation sidebar"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Current Arena badge (display-only with Change link) */}
-        <div className="mt-4 px-1">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
-            Current Arena
-          </div>
-          <div
-            className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border transition-all ${
-              currentGame === 'BGMI'
-                ? 'bg-orange-500/10 border-orange-500/30 text-orange-300'
-                : 'bg-red-500/10 border-red-500/30 text-red-300'
-            }`}
-          >
-            <img
-              src={currentGame === 'BGMI' ? '/bgmi-icon.png' : '/freefire-icon.png'}
-              alt={currentGame}
-              className="w-7 h-7 rounded-lg object-cover border border-white/10 shrink-0"
-              onError={(e) => {
-                (e.target as HTMLElement).style.display = 'none';
-              }}
-            />
-            <div className="min-w-0">
-              <span className="text-sm font-bold block leading-tight truncate">
-                {currentGame === 'BGMI'
-                  ? 'BGMI'
-                  : currentMode === 'CS'
-                  ? 'Free Fire · Clash Squad'
-                  : 'Free Fire · Battle Royale'}
-              </span>
-              <span className="text-[10px] text-white/50 block font-mono">
-                {currentGame === 'BGMI'
-                  ? 'Battlegrounds BR'
-                  : currentMode === 'CS'
-                  ? '4v4 Best-of-7 League'
-                  : '12 Squads Survival'}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                clearGame();
-                navigate('/');
-              }}
-              className="ml-auto text-xs font-semibold underline opacity-75 hover:opacity-100 hover:text-white transition-opacity py-1 px-1 cursor-pointer shrink-0"
-              title="Change arena on the 3D showcase landing"
-            >
-              Change
-            </button>
-          </div>
-        </div>
-
-        {/* Main Navigation List */}
-        <div className="mt-4">
-          <label className="text-xs font-semibold tracking-wider text-slate-300 uppercase mb-1.5 block">
-            Navigation
-          </label>
-          <nav aria-label="Main tournament navigation" className="flex flex-col space-y-0.5">
-            {visibleNavItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  onClick={() => setMobileOpen(false)}
-                  end={item.to === '/'}
-                  className={({ isActive }) =>
-                    cn(
-                      'relative flex items-center justify-between px-3 py-2.5 min-h-[44px] rounded-xl text-sm font-medium transition-all group duration-200',
-                      isActive
-                        ? 'bg-gradient-to-r from-orange-500/20 to-transparent text-amber-300 border border-orange-500/30 font-bold'
-                        : 'text-slate-300 hover:text-white hover:bg-white/5'
-                    )
-                  }
-                >
-                  {({ isActive }) => (
-                    <>
-                      {isActive && (
-                        <span className="absolute left-0 top-1 bottom-1 w-1 rounded-r bg-gradient-to-b from-orange-400 to-amber-500" />
-                      )}
-                      <div className="flex items-center gap-2.5">
-                        <Icon
-                          className={cn(
-                            'w-4 h-4 transition-colors',
-                            isActive ? 'text-amber-300' : 'text-slate-300 group-hover:text-white'
-                          )}
-                        />
-                        <span>{item.label}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {item.adminOnly && (
-                          <span className="text-xs font-bold tracking-wider uppercase px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-200 border border-amber-500/30">
-                            ADMIN
-                          </span>
-                        )}
-                        {typeof item.badge === 'number' && item.badge > 0 && (
-                          <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-rose-500 text-white min-w-4 text-center">
-                            {item.badge}
-                          </span>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </NavLink>
-              );
-            })}
-          </nav>
-        </div>
-
-        {/* Clash Squad Section for Free Fire */}
-        {currentGame === 'Free Fire' && (
-          <div className="mt-4 pt-3 border-t border-white/10">
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-bold tracking-wider text-rose-300 uppercase flex items-center gap-1">
-                <Flame className="w-3 h-3" />
-                Clash Squad Arena
-              </label>
-              <span className="text-xs font-bold bg-rose-500/20 text-rose-300 px-1.5 py-0.5 rounded border border-rose-500/30">
-                CS LEAGUE
-              </span>
-            </div>
-            <nav aria-label="Clash Squad league navigation" className="flex flex-col space-y-0.5">
-              {visibleCSNavItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    onClick={() => setMobileOpen(false)}
-                    className={({ isActive }) =>
-                      cn(
-                        'relative flex items-center justify-between px-3 py-2 min-h-[44px] rounded-xl text-sm font-medium transition-all group duration-200',
-                        isActive
-                          ? 'bg-gradient-to-r from-rose-500/20 to-transparent text-rose-300 border border-rose-500/30 font-bold'
-                          : 'text-slate-300 hover:text-white hover:bg-white/5'
-                      )
-                    }
-                  >
-                    {({ isActive }) => (
-                      <>
-                        {isActive && (
-                          <span className="absolute left-0 top-1 bottom-1 w-1 rounded-r bg-gradient-to-b from-rose-400 to-red-500" />
-                        )}
-                        <div className="flex items-center gap-2.5">
-                          <Icon
-                            className={cn(
-                              'w-3.5 h-3.5 transition-colors',
-                              isActive ? 'text-rose-300' : 'text-slate-300 group-hover:text-white'
-                            )}
-                          />
-                          <span>{item.label}</span>
-                        </div>
-                        {item.adminOnly && (
-                          <span className="text-xs font-bold tracking-wider uppercase px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-200 border border-amber-500/30">
-                            ADMIN
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </NavLink>
-                );
-              })}
-            </nav>
-          </div>
-        )}
-      </div>
-
-      {/* Footer Area with Public URL Link & Discrete Creator Bulb */}
-      <div className="relative pt-3 mt-4 border-t border-white/10">
-        <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 mb-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-mono uppercase font-bold text-slate-400 flex items-center gap-1.5">
-              <Globe className="w-3 h-3 text-blue-400" />
-              Public Portal
-            </span>
-            <span className="inline-flex items-center gap-1 text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-full border border-emerald-500/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Live
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <NavLink
-              to={`/public?game=${encodeURIComponent(currentGame)}`}
-              onClick={() => setMobileOpen(false)}
-              className="flex-1 px-3 py-2.5 min-h-[44px] rounded-lg bg-orange-500/15 hover:bg-orange-500/25 border border-orange-500/30 text-amber-300 hover:text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
-              title="Open Public Viewer"
-            >
-              <span>Public Viewer</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </NavLink>
-
-            <button
-              type="button"
-              onClick={handleCopyPublicUrl}
-              className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer"
-              title="Copy Public Viewer Link"
-              aria-label="Copy public viewer link"
-            >
-              {copiedPublicUrl ? (
-                <Check className="w-4 h-4 text-emerald-400" />
-              ) : (
-                <Copy className="w-4 h-4" />
-              )}
-            </button>
-          </div>
-          {copiedPublicUrl && (
-            <p className="text-[10px] text-emerald-400 font-mono text-center">
-              Public link copied to clipboard!
-            </p>
-          )}
-
-          {/* Connection Status & Force Sync */}
-          <div className="pt-2.5 border-t border-white/5 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div
-                className={`w-2 h-2 rounded-full ${
-                  connectionStatus === 'online'
-                    ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50'
-                    : connectionStatus === 'offline'
-                    ? 'bg-rose-500 shadow-sm shadow-rose-500/50'
-                    : 'bg-amber-400 animate-pulse'
-                }`}
-              />
-              <span className="text-[11px] text-white/50 font-medium">
-                {connectionStatus === 'online'
-                  ? 'Connected'
-                  : connectionStatus === 'offline'
-                  ? 'Offline'
-                  : 'Connecting...'}
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                console.log('[Sync] Force reloading page to synchronize Firestore and local cache...');
-                window.location.reload();
-              }}
-              className="text-[11px] text-white/40 hover:text-white transition-colors flex items-center gap-1 cursor-pointer py-0.5 px-1.5 rounded hover:bg-white/5"
-              title="Force reload all real-time data across tabs and devices"
-            >
-              <RefreshCw className="w-2.5 h-2.5 text-orange-400" />
-              <span>Sync</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="absolute bottom-0 right-0">
-          <CreatorBulb />
-        </div>
-      </div>
-    </div>
-  );
+  // Mobile bottom bar top 5 items
+  const mobilePrimaryItems = visibleItems.slice(0, 4);
+  const mobileMoreItems = visibleItems.slice(4);
 
   return (
     <>
-      {/* Mobile Top Bar */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-30 flex items-center justify-between px-4 py-2.5 bg-[#0a0c16]/95 backdrop-blur-xl border-b border-orange-500/20">
-        <div className="flex items-center gap-2.5">
-          <div className="relative shrink-0">
-            <img
-              src={logoSrc}
-              alt={brandName}
-              className="w-8 h-8 rounded-lg object-contain bg-black/60 p-0.5 border border-orange-500/30"
-              onError={(e) => {
-                (e.target as HTMLElement).style.display = 'none';
-                const fb = (e.target as HTMLElement).parentElement?.querySelector('.mobile-logo-fb') as HTMLElement;
-                if (fb) fb.style.display = 'flex';
-              }}
-            />
-            <div className="mobile-logo-fb hidden w-8 h-8 rounded-lg bg-gradient-to-tr from-red-600 to-orange-500 items-center justify-center text-white font-black text-xs font-['Teko',sans-serif] text-sm">
-              {initials}
-            </div>
-          </div>
-          <span className="font-black text-white text-base tracking-wider font-['Teko',sans-serif] text-xl leading-none uppercase bg-gradient-to-r from-white via-orange-100 to-amber-200 bg-clip-text text-transparent truncate max-w-[180px]">
-            {brandName}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <SidebarUserIcon />
-          <button
-            type="button"
-            onClick={() => setMobileOpen(true)}
-            className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg bg-white/5 border border-white/10 text-gray-300 hover:text-white cursor-pointer"
-            aria-label="Open navigation menu"
+      {/* ━━━ DESKTOP RAIL (>= 768px) ━━━ */}
+      <aside
+        aria-label="Main sidebar navigation"
+        className="hidden md:flex fixed top-0 left-0 bottom-0 w-[76px] z-40 flex-col items-center justify-between py-5 bg-[#000000] border-r border-white/[0.06] select-none"
+      >
+        {/* Top Brand Logo */}
+        <div className="flex flex-col items-center w-full">
+          <Link
+            to="/"
+            aria-label="GS Arena Home"
+            className="group flex items-center justify-center w-12 h-12 rounded-full text-accent transition-transform hover:scale-105 active:scale-95"
           >
-            <Menu className="w-5 h-5" />
-          </button>
+            <StarburstLogo size={30} className="transition-transform duration-300 group-hover:rotate-45" />
+          </Link>
+          <div className="w-8 h-[1px] bg-white/[0.08] my-3" />
         </div>
-      </div>
 
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-60 lg:w-64 shrink-0 h-screen sticky top-0 bg-[#070913]/90 backdrop-blur-xl border-r border-white/10 p-4 z-20 overflow-y-auto">
-        {sidebarContent}
+        {/* Middle Navigation Items */}
+        <nav className="flex-1 w-full flex flex-col items-center gap-1.5 overflow-y-auto overflow-x-hidden scrollbar-none py-2">
+          {visibleItems.map((item) => {
+            const isActive = item.id === activeItemId;
+            const isCreatorItem = item.id === 'creator';
+            const Icon = item.icon;
+
+            return (
+              <div key={item.id} className="relative group w-full flex justify-center py-0.5">
+                {/* Active Breakout Pill with Concave Fillets */}
+                {isActive && (
+                  <motion.div
+                    layoutId="sidebarActive"
+                    transition={{
+                      type: 'spring',
+                      stiffness: 380,
+                      damping: 32,
+                      mass: 0.9,
+                    }}
+                    className="absolute left-0 top-1/2 -translate-y-1/2 w-[88px] h-[52px] rounded-r-full bg-[#000000] border-2 border-accent shadow-[0_0_20px_var(--accent-glow)] z-10 pointer-events-none"
+                  >
+                    {/* Top Concave Fillet (Inverse Radius melting into rail) */}
+                    <div
+                      aria-hidden="true"
+                      className="absolute -top-[20px] left-0 w-[20px] h-[20px] pointer-events-none"
+                      style={{
+                        background:
+                          'radial-gradient(circle at 100% 0%, transparent 19px, #000000 20px)',
+                      }}
+                    />
+
+                    {/* Bottom Concave Fillet (Inverse Radius melting into rail) */}
+                    <div
+                      aria-hidden="true"
+                      className="absolute -bottom-[20px] left-0 w-[20px] h-[20px] pointer-events-none"
+                      style={{
+                        background:
+                          'radial-gradient(circle at 100% 100%, transparent 19px, #000000 20px)',
+                      }}
+                    />
+                  </motion.div>
+                )}
+
+                {/* Nav Link Icon */}
+                <Link
+                  to={item.path}
+                  aria-label={item.label}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={cn(
+                    'relative z-20 flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-150',
+                    isCreatorItem && !isActive && 'text-[#FFB020] animate-pulse',
+                    isActive
+                      ? 'text-white scale-105'
+                      : 'text-slate-400/60 hover:text-white hover:scale-105'
+                  )}
+                >
+                  <Icon size={20} className="stroke-[1.8]" />
+
+                  {/* Micro Glass Tooltip (Reference-A/B style) */}
+                  <div className="pointer-events-none absolute left-[74px] px-2.5 py-1 rounded-[6px] border border-white/10 bg-black/90 backdrop-blur-md text-[11px] font-mono uppercase tracking-[0.14em] text-white opacity-0 -translate-x-2 transition-all duration-150 delay-150 group-hover:opacity-100 group-hover:translate-x-0 shadow-xl whitespace-nowrap z-50">
+                    {item.label}
+                  </div>
+                </Link>
+              </div>
+            );
+          })}
+        </nav>
+
+        {/* Bottom Utility Actions */}
+        <div className="flex flex-col items-center w-full gap-2 pt-2 border-t border-white/[0.08]">
+          {/* Help */}
+          <Link
+            to="/faq"
+            aria-label="FAQ & Help"
+            className="flex items-center justify-center w-10 h-10 rounded-xl text-slate-400/60 hover:text-white transition-colors"
+          >
+            <IconHelp size={18} />
+          </Link>
+
+          {/* Sign out (if signed in) or Sign In button */}
+          {user ? (
+            <button
+              type="button"
+              onClick={() => signOut()}
+              aria-label="Sign Out"
+              title="Sign Out"
+              className="flex items-center justify-center w-10 h-10 rounded-xl text-slate-400/60 hover:text-danger transition-colors"
+            >
+              <IconLogout size={18} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => navigate('/login')}
+              aria-label="Admin Sign In"
+              title="Sign In"
+              className="flex items-center justify-center w-8 h-8 rounded-full border border-white/15 bg-white/5 text-[10px] font-mono text-slate-300 hover:text-white hover:border-accent"
+            >
+              ADM
+            </button>
+          )}
+        </div>
       </aside>
 
-      {/* Mobile Slide-out Drawer */}
-      {mobileOpen && (
-        <div className="md:hidden fixed inset-0 z-50 flex">
-          <div
-            className="fixed inset-0 bg-black/80 backdrop-blur-md transition-opacity"
-            onClick={() => setMobileOpen(false)}
-          />
-          <div className="relative w-64 max-w-[85vw] h-full bg-[#070913]/95 backdrop-blur-2xl border-r border-white/15 p-4 z-10 overflow-y-auto shadow-2xl">
-            {sidebarContent}
+      {/* ━━━ MOBILE BOTTOM BAR (< 768px) ━━━ */}
+      <nav
+        aria-label="Mobile bottom navigation"
+        className="md:hidden fixed bottom-0 left-0 right-0 h-14 bg-[#000000]/95 backdrop-blur-xl border-t border-white/[0.08] z-40 flex items-center justify-around px-2 pb-[env(safe-area-inset-bottom)] select-none"
+      >
+        {mobilePrimaryItems.map((item) => {
+          const isActive = item.id === activeItemId;
+          const Icon = item.icon;
+
+          return (
+            <Link
+              key={item.id}
+              to={item.path}
+              aria-label={item.label}
+              className={cn(
+                'relative flex flex-col items-center justify-center w-14 h-12 transition-colors',
+                isActive ? 'text-accent' : 'text-slate-400/60'
+              )}
+            >
+              {isActive && (
+                <motion.div
+                  layoutId="mobileActiveBar"
+                  transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+                  className="absolute top-0 inset-x-2 h-0.5 bg-accent rounded-full shadow-[0_0_8px_var(--accent-glow)]"
+                />
+              )}
+              <Icon size={20} />
+              <span className="font-mono text-[9px] uppercase tracking-wider mt-0.5 truncate max-w-full">
+                {item.label}
+              </span>
+            </Link>
+          );
+        })}
+
+        {/* More Drawer Button */}
+        <button
+          type="button"
+          onClick={() => setMobileDrawerOpen(true)}
+          aria-label="Open more navigation options"
+          className="relative flex flex-col items-center justify-center w-14 h-12 text-slate-400/60 hover:text-white"
+        >
+          <Menu className="w-5 h-5" />
+          <span className="font-mono text-[9px] uppercase tracking-wider mt-0.5">More</span>
+        </button>
+      </nav>
+
+      {/* ━━━ MOBILE MORE DRAWER ━━━ */}
+      <AnimatePresence>
+        {mobileDrawerOpen && (
+          <div className="md:hidden fixed inset-0 z-50 flex flex-col justify-end">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMobileDrawerOpen(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+              className="relative w-full max-h-[75vh] bg-[#0A0A0A] border-t border-white/10 rounded-t-2xl p-5 overflow-y-auto pb-[calc(1rem+env(safe-area-inset-bottom))]"
+            >
+              <div className="flex items-center justify-between pb-4 border-b border-white/10">
+                <span className="font-mono text-xs uppercase tracking-widest text-muted">
+                  Navigation Menu
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMobileDrawerOpen(false)}
+                  className="p-1 rounded-full text-slate-400 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5 mt-4">
+                {visibleItems.map((item) => {
+                  const isActive = item.id === activeItemId;
+                  const Icon = item.icon;
+
+                  return (
+                    <Link
+                      key={item.id}
+                      to={item.path}
+                      onClick={() => setMobileDrawerOpen(false)}
+                      className={cn(
+                        'flex items-center gap-2.5 p-3 rounded-xl border font-mono text-xs uppercase tracking-wider transition-colors',
+                        isActive
+                          ? 'border-accent bg-accent/10 text-white font-bold'
+                          : 'border-white/5 bg-white/[0.02] text-slate-300 hover:bg-white/[0.05]'
+                      )}
+                    >
+                      <Icon size={18} className={isActive ? 'text-accent' : 'text-slate-400'} />
+                      <span className="truncate">{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+
+              {/* Bottom user actions */}
+              <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-between">
+                {user ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileDrawerOpen(false);
+                      signOut();
+                    }}
+                    className="flex items-center gap-2 text-danger text-xs font-mono uppercase tracking-wider"
+                  >
+                    <IconLogout size={16} />
+                    Sign Out ({user.email?.split('@')[0]})
+                  </button>
+                ) : (
+                  <Link
+                    to="/login"
+                    onClick={() => setMobileDrawerOpen(false)}
+                    className="flex items-center gap-2 text-accent text-xs font-mono uppercase tracking-wider"
+                  >
+                    Admin Sign In
+                  </Link>
+                )}
+              </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </>
   );
 }

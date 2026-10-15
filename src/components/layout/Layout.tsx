@@ -3,7 +3,6 @@ import { Outlet, useOutletContext } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { Footer } from './Footer';
-import { FloatingOrbs } from '../ui/FloatingOrbs';
 import { useTournament } from '../../context/TournamentContext';
 import { useGame } from '../../context/GameContext';
 import type { Game, Tournament } from '../../types';
@@ -16,11 +15,20 @@ export interface LayoutContextType {
 
 export type LayoutOutletContext = LayoutContextType;
 
+/**
+ * Hook to access layout-level game context and active tournament.
+ */
 export function useLayoutContext(): LayoutContextType {
   return useOutletContext<LayoutContextType>();
 }
 
-function LayoutContent() {
+/**
+ * Layout shell component.
+ * Locked rule: Contains Sidebar, Header, Footer, Outlet ONLY.
+ * No providers, no background layers.
+ * Sets data-game attribute on the layout root for CSS variable --accent swapping.
+ */
+export function Layout() {
   const { currentGame, setCurrentGame } = useGame();
   const { activeTournament } = useTournament();
 
@@ -32,13 +40,14 @@ function LayoutContent() {
   );
 
   return (
-    <div className="relative min-h-screen text-gray-100 flex flex-col md:flex-row overflow-x-hidden">
-      <FloatingOrbs />
-
-      {/* Sidebar */}
+    <div
+      data-game={currentGame}
+      className="relative min-h-screen text-foreground flex flex-col md:flex-row overflow-x-hidden"
+    >
+      {/* Sidebar Rail */}
       <Sidebar currentGame={currentGame} />
 
-      {/* Main Content Area with integrated Header and Footer */}
+      {/* Main Content Area */}
       <div className="flex-1 min-w-0 pt-14 md:pt-0 z-10 flex flex-col min-h-screen overflow-y-auto">
         <Header />
         <main
@@ -60,8 +69,4 @@ function LayoutContent() {
       </div>
     </div>
   );
-}
-
-export function Layout() {
-  return <LayoutContent />;
 }
