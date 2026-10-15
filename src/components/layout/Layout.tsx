@@ -3,11 +3,9 @@ import { Outlet, useOutletContext } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { Footer } from './Footer';
-import { CosmicBackground } from '../CosmicBackground';
 import { FloatingOrbs } from '../ui/FloatingOrbs';
 import { useTournament } from '../../context/TournamentContext';
 import { useGame } from '../../context/GameContext';
-import { useBranding } from '../../hooks/useBranding';
 import type { Game, Tournament } from '../../types';
 
 export interface LayoutContextType {
@@ -25,22 +23,6 @@ export function useLayoutContext(): LayoutContextType {
 function LayoutContent() {
   const { currentGame, setCurrentGame } = useGame();
   const { activeTournament } = useTournament();
-  const { branding } = useBranding();
-
-  const waveColors =
-    branding.backgroundColors && branding.backgroundColors.length > 0
-      ? branding.backgroundColors
-      : branding.waveColors && branding.waveColors.length > 0
-      ? branding.waveColors
-      : [branding.primaryColor || '#FF6B35', branding.secondaryColor || '#00D9FF'];
-
-  const waveSettings = {
-    waveSpeed: branding.backgroundWaveSpeed ?? branding.waveSpeed ?? 74,
-    waveHeight: branding.backgroundWaveHeight ?? branding.waveHeight ?? 227,
-    waveLength: branding.backgroundWaveLength ?? branding.waveLength ?? 2690,
-  };
-
-  const isWaveEnabled = branding.backgroundEnabled !== false && branding.waveEnabled !== false;
 
   const setGame = useCallback(
     (next: Game) => {
@@ -50,24 +32,7 @@ function LayoutContent() {
   );
 
   return (
-    <div className="relative min-h-screen text-gray-100 flex flex-col md:flex-row bg-[#03040a] overflow-x-hidden">
-      {/* ━━━ BACKGROUND RENDERING ━━━ */}
-      {isWaveEnabled ? (
-        <div
-          className="fixed inset-0 z-0 pointer-events-none overflow-hidden opacity-70"
-          aria-hidden="true"
-        >
-    
-        </div>
-      ) : (
-        <div
-          className="fixed inset-0 z-0 pointer-events-none overflow-hidden"
-          aria-hidden="true"
-        >
-          <CosmicBackground />
-          <div className="hex-grid absolute inset-0 opacity-40 pointer-events-none" />
-        </div>
-      )}
+    <div className="relative min-h-screen text-gray-100 flex flex-col md:flex-row overflow-x-hidden">
       <FloatingOrbs />
 
       {/* Sidebar */}
