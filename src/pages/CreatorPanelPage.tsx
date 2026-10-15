@@ -1,731 +1,567 @@
-import { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  Crosshair,
-  Database,
-  Globe,
-  Mail,
+  Sparkles,
   Palette,
-  Shield,
+  Database,
+  Activity,
+  Copy,
+  Check,
+  RotateCcw,
+  Download,
   Upload,
-  UserCheck,
-  Waves,
-  Zap,
+  Trash2,
+  Lock,
+  Unlock,
+  AlertTriangle,
+  Radio,
 } from 'lucide-react';
-import { Card } from '../components/ui/Card';
+import { useCreator } from '../hooks/useCreator';
+import { useBackground, DEFAULT_BACKGROUND_STATE } from '../context/BackgroundContext';
+import { useTheme, type ThemeMode } from '../context/ThemeContext';
+import { useTournament } from '../context/TournamentContext';
+import { useToast } from '../context/ToastContext';
+import { useConnectionStatus } from '../hooks/useConnectionStatus';
+import { MorphTabs, type TabItem } from '../components/ui/MorphTabs';
+import { TagChip } from '../components/ui/TagChip';
 import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { Badge } from '../components/ui/Badge';
-import { useBranding, DEFAULT_BRANDING, type BrandingConfig } from '../hooks/useBranding';
+import { exportTournamentToJSON, downloadBlob } from '../lib/dataExport';
+import { cn } from '../lib/cn';
 
+/**
+ * Creator Console Page.
+ * Pinned compact glass sheet allowing real-time ribbon preview behind the panel.
+ * Includes four dedicated tabs: Background, Theme, Data, Diagnostics.
+ */
 export function CreatorPanelPage() {
-  const { branding, saveBranding } = useBranding();
-  const [activeSection, setActiveSection] = useState('branding');
-  const [brandingLogo, setBrandingLogo] = useState<string | null>(null);
-  const [weaponSkin, setWeaponSkin] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const { isCreatorUnlocked, unlock, lock } = useCreator();
+  const { state: bgState, setBackground, resetBackground } = useBackground();
+  const { mode: themeMode, setMode: setThemeMode } = useTheme();
+  const { activeTournament } = useTournament();
+  const { showToast } = useToast();
+  const connectionStatus = useConnectionStatus();
 
-  // Background state initialized from branding config
-  const [bgConfig, setBgConfig] = useState<BrandingConfig>(branding);
-  const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [activeTab, setActiveTab] = useState<string>('background');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [unlockError, setUnlockError] = useState(false);
+  const [copiedJson, setCopiedJson] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importPendingData, setImportPendingData] = useState<any>(null);
 
-  // Keep bgConfig in sync when branding loads
-  useState(() => {
-    setBgConfig(branding);
-  });
+  // Diagnostics: Live FPS sampler
+  const [fps, setFps] = useState<number>(60);
+  const frameCountRef = useRef(0);
+  const lastFpsTimeRef = useRef(performance.now());
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (ev) => setBrandingLogo(ev.target?.result as string);
-      reader.readAsDataURL(file);
+  useEffect(() => {
+    let animId: number;
+    const loop = (now: number) => {
+      frameCountRef.current++;
+      if (now - lastFpsTimeRef.current >= 1000) {
+        const measuredFps = Math.round(
+          (frameCountRef.current * 1000) / (now - lastFpsTimeRef.current)
+        );
+        setFps(measuredFps);
+        frameCountRef.current = 0;
+        lastFpsTimeRef.current = now;
+      }
+      animId = requestAnimationFrame(loop);
+    };
+    animId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(animId);
+  }, []);
+
+  // Diagnostics: WebGL2 status
+  const isWebGL2 = typeof document !== 'undefined' && !!document.createElement('canvas').getContext('webgl2');
+
+  const handleUnlockSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const success = await unlock(passwordInput);
+    if (!success) {
+      setUnlockError(true);
+      showToast('Invalid creator passkey', 'error');
+    } else {
+      setUnlockError(false);
+      setPasswordInput('');
+      showToast('Creator Console unlocked', 'success');
     }
   };
 
-  const handleWeaponUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (ev) => setWeaponSkin(ev.target?.result as string);
-      reader.readAsDataURL(file);
-    }
+  const handleCopyJson = () => {
+    navigator.clipboard.writeText(JSON.stringify(bgState, null, 2));
+    setCopiedJson(true);
+    showToast('Background config copied to clipboard', 'info');
+    setTimeout(() => setCopiedJson(false), 2000);
   };
 
-  const applyPreset = (preset: 'default' | 'calm' | 'energetic') => {
-    if (preset === 'default') {
-      setBgConfig((prev) => ({
-        ...prev,
-        backgroundPreset: 'default',
-        backgroundDensity: DEFAULT_BRANDING.backgroundDensity,
-        backgroundDotSize: DEFAULT_BRANDING.backgroundDotSize,
-        backgroundWaveSpeed: DEFAULT_BRANDING.backgroundWaveSpeed,
-        backgroundWaveHeight: DEFAULT_BRANDING.backgroundWaveHeight,
-        backgroundWaveLength: DEFAULT_BRANDING.backgroundWaveLength,
-        backgroundCameraHeight: DEFAULT_BRANDING.backgroundCameraHeight,
-        backgroundScatter: DEFAULT_BRANDING.backgroundScatter,
-        backgroundTiltStart: DEFAULT_BRANDING.backgroundTiltStart,
-        backgroundRollStart: DEFAULT_BRANDING.backgroundRollStart,
-      }));
-    } else if (preset === 'calm') {
-      setBgConfig((prev) => ({
-        ...prev,
-        backgroundPreset: 'calm',
-        backgroundDensity: 50,
-        backgroundDotSize: 6,
-        backgroundWaveSpeed: 40,
-        backgroundWaveHeight: 150,
-        backgroundWaveLength: 3000,
-        backgroundCameraHeight: 40,
-        backgroundScatter: 60,
-      }));
-    } else if (preset === 'energetic') {
-      setBgConfig((prev) => ({
-        ...prev,
-        backgroundPreset: 'energetic',
-        backgroundDensity: 150,
-        backgroundDotSize: 12,
-        backgroundWaveSpeed: 150,
-        backgroundWaveHeight: 400,
-        backgroundWaveLength: 1800,
-        backgroundCameraHeight: 70,
-        backgroundScatter: 200,
-      }));
-    }
-  };
-
-  const handleSaveBackground = async () => {
+  const handleExportData = async () => {
     try {
-      await saveBranding(bgConfig);
-      setSaveStatus({ type: 'success', message: '✅ Background saved to cloud' });
-      setTimeout(() => setSaveStatus(null), 3000);
-    } catch (err) {
-      console.error('[Creator] Save failed:', err);
-      setSaveStatus({ type: 'error', message: '❌ Save failed' });
+      const tid = activeTournament?.id || 'default';
+      const blob = await exportTournamentToJSON(tid, {
+        includeTeams: true,
+        includeMembers: true,
+        includeMatches: true,
+        includeStandings: true,
+        includeRegistrations: true,
+        includePayments: true,
+      });
+      downloadBlob(blob, `gs-arena-backup-${tid}-${new Date().toISOString().slice(0, 10)}.json`);
+      showToast('Tournament backup exported successfully', 'success');
+    } catch (err: any) {
+      showToast(`Export failed: ${err.message}`, 'error');
     }
   };
+
+  const handleImportFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const text = ev.target?.result as string;
+        const parsed = JSON.parse(text);
+        if (!parsed || typeof parsed !== 'object') {
+          throw new Error('Invalid JSON structure');
+        }
+        setImportPendingData(parsed);
+        setImportModalOpen(true);
+      } catch (err: any) {
+        showToast(`Invalid JSON file: ${err.message}`, 'error');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleWipeCache = () => {
+    if (confirm('Clear local app cache and reload? This will not delete Firestore data.')) {
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+        showToast('Local cache wiped', 'info');
+        setTimeout(() => window.location.reload(), 500);
+      } catch {
+        // Ignore
+      }
+    }
+  };
+
+  const tabs: TabItem[] = [
+    { id: 'background', label: 'Background', icon: <Sparkles className="w-3.5 h-3.5" /> },
+    { id: 'theme', label: 'Theme', icon: <Palette className="w-3.5 h-3.5" /> },
+    { id: 'data', label: 'Data', icon: <Database className="w-3.5 h-3.5" /> },
+    { id: 'diagnostics', label: 'Diagnostics', icon: <Activity className="w-3.5 h-3.5" /> },
+  ];
+
+  // Locked gate screen
+  if (!isCreatorUnlocked) {
+    return (
+      <div className="flex min-h-[75vh] items-center justify-center p-4">
+        <div className="w-full max-w-md p-6 sm:p-8 rounded-[20px] border border-border bg-surface/85 backdrop-blur-2xl shadow-2xl">
+          <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-warn/10 border border-warn/30 text-warn mx-auto mb-4">
+            <Lock className="w-6 h-6" />
+          </div>
+
+          <div className="text-center mb-6">
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <TagChip variant="warn">RESTRICTED</TagChip>
+            </div>
+            <h1 className="font-mono text-xl sm:text-2xl font-bold uppercase tracking-tight text-foreground">
+              Creator Console
+            </h1>
+            <p className="font-sans text-xs text-muted mt-1">
+              Enter your creator security passkey to access live visual controls and broadcast telemetry.
+            </p>
+          </div>
+
+          <form onSubmit={handleUnlockSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="passkey" className="block font-mono text-[11px] uppercase tracking-wider text-muted mb-1.5">
+                Master Security Key
+              </label>
+              <input
+                id="passkey"
+                type="password"
+                value={passwordInput}
+                onChange={(e) => {
+                  setPasswordInput(e.target.value);
+                  setUnlockError(false);
+                }}
+                placeholder="••••••••"
+                className={cn(
+                  'w-full px-4 py-2.5 rounded-control border bg-surface-2/80 font-mono text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors',
+                  unlockError ? 'border-danger focus:ring-danger' : 'border-border'
+                )}
+                autoFocus
+              />
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <Button type="submit" variant="primary" className="flex-1">
+                Unlock Console
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => navigate('/')}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 border-b border-white/10 pb-6 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-accent-cyan">
-            ORGANIZATION CREATOR SUITE
-          </span>
-          <h1 className="mt-1 font-orbitron text-3xl font-black uppercase tracking-tight text-white sm:text-4xl">
-            Creator Panel
-          </h1>
-          <p className="mt-1 font-rajdhani text-sm font-semibold uppercase tracking-wider text-slate-400">
-            Organization owner controls, asset branding, weapon customization, and demo generator
-          </p>
+    <div className="relative min-h-[calc(100vh-6rem)] py-6 flex flex-col justify-start items-end">
+      {/* Pinned Glass Sheet Panel */}
+      <div className="w-full max-w-xl rounded-[20px] border border-border bg-surface/80 backdrop-blur-2xl shadow-2xl p-5 sm:p-6 overflow-hidden">
+        {/* Panel Header */}
+        <div className="flex items-center justify-between pb-4 border-b border-border/60">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-warn/15 border border-warn/30 flex items-center justify-center text-warn">
+              <Unlock className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="font-mono text-sm sm:text-base font-bold uppercase tracking-wider text-foreground">
+                  Creator Console
+                </h1>
+                <TagChip variant="accent">LIVE</TagChip>
+              </div>
+              <p className="font-mono text-[10px] text-muted">
+                REAL-TIME TELEMETRY & SHADER DIRECTIVE
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={lock}
+            className="px-2.5 py-1 rounded-[6px] border border-border bg-surface-2/60 text-muted hover:text-danger hover:border-danger/40 font-mono text-[11px] uppercase tracking-wider transition-colors"
+          >
+            Lock
+          </button>
         </div>
 
-        <Badge variant="purple" size="md">
-          OWNER ROOT LEVEL
-        </Badge>
-      </div>
+        {/* Tab Navigation */}
+        <div className="mt-4">
+          <MorphTabs
+            tabs={tabs}
+            value={activeTab}
+            onChange={setActiveTab}
+            variant="underline"
+            density="default"
+            aria-label="Creator Console Navigation"
+          />
+        </div>
 
-      {/* Navigation Pills */}
-      <div className="flex gap-2 overflow-x-auto border-b border-white/10 pb-3 custom-scrollbar">
-        {[
-          { id: 'admins', label: 'Admin Management', icon: UserCheck },
-          { id: 'branding', label: 'Branding & Theme', icon: Palette },
-          { id: 'background', label: '🌊 Wave Background', icon: Waves },
-          { id: 'guns', label: 'Weapons & 3D Assets', icon: Crosshair },
-          { id: 'contact', label: 'Contact & Socials', icon: Mail },
-          { id: 'viewer', label: 'Public Viewer', icon: Globe },
-          { id: 'demo', label: 'Demo Data', icon: Database },
-        ].map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setActiveSection(id)}
-            className={`flex items-center gap-2 rounded-xl border px-4 py-2 font-rajdhani text-sm font-bold uppercase tracking-wider transition-all select-none ${
-              activeSection === id
-                ? 'border-accent-cyan/80 bg-accent-cyan/20 text-accent-cyan shadow-[0_0_16px_rgba(0,217,255,0.2)]'
-                : 'border-white/10 bg-white/[0.03] text-slate-400 hover:border-white/20 hover:text-white'
-            }`}
-          >
-            <Icon className="h-4 w-4" />
-            <span>{label}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* ━━━ SECTION 1: ADMIN MANAGEMENT ━━━ */}
-      {activeSection === 'admins' && (
-        <Card className="p-6 space-y-6">
-          <div className="border-b border-white/10 pb-3">
-            <h3 className="font-orbitron text-lg font-bold uppercase text-white">
-              Organizer & Admin Access
-            </h3>
-            <p className="font-mono text-xs text-slate-400">
-              Grant and revoke tournament management authority
-            </p>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <Input label="Grant Admin Access (Email)" placeholder="organizer@gsarena.gg" />
-            <div className="flex items-end">
-              <Button variant="primary" size="md">
-                Authorize New Admin
-              </Button>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-white/10 bg-black/40 p-4">
-            <span className="font-mono text-xs font-bold uppercase text-slate-400">
-              Active Authorized Administrators
-            </span>
-            <div className="mt-3 space-y-2 font-mono text-xs">
-              <div className="flex items-center justify-between rounded-lg bg-white/5 p-2.5">
-                <span className="font-semibold text-white">owner@gsarena.gg</span>
-                <Badge variant="purple" size="sm">
-                  SUPER ADMIN
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between rounded-lg bg-white/5 p-2.5">
-                <span className="text-slate-300">dheer@gsarena.gg</span>
-                <Badge variant="cyan" size="sm">
-                  ORGANIZER
-                </Badge>
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* ━━━ SECTION 2: BRANDING & THEME ━━━ */}
-      {activeSection === 'branding' && (
-        <Card className="p-6 space-y-6">
-          <div className="border-b border-white/10 pb-3">
-            <h3 className="font-orbitron text-lg font-bold uppercase text-white">
-              Custom Organization Identity
-            </h3>
-            <p className="font-mono text-xs text-slate-400">
-              Upload custom esports crest and configure theme styling
-            </p>
-          </div>
-
-          <div>
-            <label className="mb-2 block font-mono text-xs font-bold uppercase text-slate-400">
-              Tournament Logo Crest
-            </label>
-            <div className="relative overflow-hidden rounded-2xl border-2 border-dashed border-white/15 bg-white/[0.02] p-8 text-center transition hover:border-accent-cyan/50">
-              {brandingLogo ? (
-                <div className="flex flex-col items-center">
-                  <img
-                    src={brandingLogo}
-                    alt="Logo Preview"
-                    className="h-28 w-28 rounded-2xl border border-white/20 object-cover shadow-2xl"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setBrandingLogo(null)}
-                    className="mt-3 font-mono text-xs text-accent-red underline"
-                  >
-                    Remove Logo
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <Upload className="mx-auto h-8 w-8 text-slate-400" />
-                  <p className="mt-2 font-mono text-xs text-slate-300">
-                    Click to upload custom organization crest (PNG / SVG)
-                  </p>
+        {/* Tab Content Panels */}
+        <div className="mt-5 space-y-4">
+          {/* ━━━ TAB 1: BACKGROUND ━━━ */}
+          {activeTab === 'background' && (
+            <div className="space-y-4">
+              {/* Sliders */}
+              <div className="space-y-3.5 bg-surface-2/40 p-4 rounded-xl border border-border/50">
+                {/* Density */}
+                <div>
+                  <div className="flex items-center justify-between font-mono text-xs mb-1">
+                    <span className="text-muted uppercase tracking-wider">Density</span>
+                    <span className="text-accent font-bold tabular-nums">{bgState.density}%</span>
+                  </div>
                   <input
-                    type="file"
-                    accept="image/*"
-                    className="absolute inset-0 cursor-pointer opacity-0"
-                    onChange={handleLogoUpload}
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={bgState.density}
+                    onChange={(e) => setBackground({ density: Number(e.target.value) })}
+                    className="w-full accent-accent cursor-pointer"
                   />
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <Input label="Primary Accent Color" defaultValue="#FF6B35" />
-            <Input label="Secondary Glow Color" defaultValue="#00D9FF" />
-          </div>
-
-          <Button variant="primary" size="md">
-            Save Brand Identity
-          </Button>
-        </Card>
-      )}
-
-      {/* ━━━ SECTION: WAVE BACKGROUND CONFIGURATION ━━━ */}
-      {activeSection === 'background' && (
-        <Card className="p-6 space-y-6">
-          <div className="flex flex-col gap-2 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h3 className="font-orbitron text-lg font-bold uppercase text-white flex items-center gap-2">
-                <Waves className="h-5 w-5 text-accent-cyan" />
-                <span>Dynamic WebGL Wave Field</span>
-              </h3>
-              <p className="font-mono text-xs text-slate-400">
-                Real-time GPU shader wave field with mouse warp harmonics and cinematic perspective
-              </p>
-            </div>
-            {saveStatus && (
-              <Badge variant={saveStatus.type === 'success' ? 'green' : 'red'} size="md">
-                {saveStatus.message}
-              </Badge>
-            )}
-          </div>
-
-          {/* Master Enable Toggle */}
-          <div className="flex items-center justify-between rounded-xl border border-white/10 bg-black/40 p-4">
-            <div>
-              <span className="font-orbitron text-sm font-bold uppercase text-white">
-                Wave Background Status
-              </span>
-              <p className="font-mono text-xs text-slate-400">
-                Enable live WebGL mesh wave or fall back to high-contrast starfield
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() =>
-                setBgConfig((prev) => ({ ...prev, backgroundEnabled: !prev.backgroundEnabled }))
-              }
-              className={`rounded-lg px-4 py-2 font-rajdhani text-xs font-bold uppercase tracking-wider transition ${
-                bgConfig.backgroundEnabled
-                  ? 'border border-accent-cyan/80 bg-accent-cyan/20 text-accent-cyan shadow-[0_0_16px_rgba(0,217,255,0.3)]'
-                  : 'border border-white/10 bg-white/5 text-slate-400'
-              }`}
-            >
-              {bgConfig.backgroundEnabled ? 'ENABLED (ACTIVE)' : 'DISABLED'}
-            </button>
-          </div>
-
-          {/* Presets */}
-          <div>
-            <label className="mb-2 block font-mono text-xs font-bold uppercase tracking-wider text-slate-400">
-              Harmonic Presets
-            </label>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {[
-                { id: 'default', label: 'Default Matrix' },
-                { id: 'calm', label: 'Calm Flow' },
-                { id: 'energetic', label: 'High Energy' },
-                { id: 'custom', label: 'Custom' },
-              ].map(({ id, label }) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => {
-                    if (id !== 'custom') applyPreset(id as 'default' | 'calm' | 'energetic');
-                    else setBgConfig((p) => ({ ...p, backgroundPreset: 'custom' }));
-                  }}
-                  className={`rounded-xl border px-3 py-2 font-rajdhani text-xs font-bold uppercase tracking-wider transition ${
-                    bgConfig.backgroundPreset === id
-                      ? 'border-accent-cyan bg-accent-cyan/20 text-accent-cyan shadow-[0_0_12px_rgba(0,217,255,0.3)]'
-                      : 'border-white/10 bg-white/[0.03] text-slate-400 hover:text-white'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Live Mini Preview */}
-          <div className="overflow-hidden rounded-2xl border border-white/15 bg-black/60 p-4">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="font-mono text-xs font-bold uppercase tracking-wider text-slate-300">
-                Live Interactive Shader Preview
-              </span>
-              <span className="font-mono text-[10px] text-accent-cyan">HOVER / MOVE MOUSE OVER WAVE</span>
-            </div>
-            <div className="relative h-48 w-full overflow-hidden rounded-xl border border-white/10 bg-[#03040a]">
-            </div>
-          </div>
-
-          {/* Wave Settings Sliders */}
-          <div className="space-y-4 rounded-2xl border border-white/10 bg-black/30 p-5">
-            <h4 className="font-orbitron text-xs font-bold uppercase tracking-wider text-accent-cyan">
-              Wave Geometry & Dynamics
-            </h4>
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {/* Density */}
-              <div>
-                <div className="mb-1 flex justify-between font-mono text-xs">
-                  <span className="text-slate-400">Density</span>
-                  <span className="font-bold text-accent-cyan">{bgConfig.backgroundDensity}</span>
                 </div>
-                <input
-                  type="range"
-                  min="20"
-                  max="200"
-                  value={bgConfig.backgroundDensity}
-                  onChange={(e) =>
-                    setBgConfig((p) => ({ ...p, backgroundDensity: Number(e.target.value) }))
-                  }
-                  className="w-full accent-accent-cyan"
-                />
-              </div>
 
-              {/* Dot Size */}
-              <div>
-                <div className="mb-1 flex justify-between font-mono text-xs">
-                  <span className="text-slate-400">Dot Size</span>
-                  <span className="font-bold text-accent-cyan">{bgConfig.backgroundDotSize}px</span>
-                </div>
-                <input
-                  type="range"
-                  min="1"
-                  max="20"
-                  value={bgConfig.backgroundDotSize}
-                  onChange={(e) =>
-                    setBgConfig((p) => ({ ...p, backgroundDotSize: Number(e.target.value) }))
-                  }
-                  className="w-full accent-accent-cyan"
-                />
-              </div>
-
-              {/* Wave Speed */}
-              <div>
-                <div className="mb-1 flex justify-between font-mono text-xs">
-                  <span className="text-slate-400">Wave Speed</span>
-                  <span className="font-bold text-accent-cyan">{bgConfig.backgroundWaveSpeed}</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="200"
-                  value={bgConfig.backgroundWaveSpeed}
-                  onChange={(e) =>
-                    setBgConfig((p) => ({ ...p, backgroundWaveSpeed: Number(e.target.value) }))
-                  }
-                  className="w-full accent-accent-cyan"
-                />
-              </div>
-
-              {/* Wave Height */}
-              <div>
-                <div className="mb-1 flex justify-between font-mono text-xs">
-                  <span className="text-slate-400">Wave Height</span>
-                  <span className="font-bold text-accent-cyan">{bgConfig.backgroundWaveHeight}</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="500"
-                  value={bgConfig.backgroundWaveHeight}
-                  onChange={(e) =>
-                    setBgConfig((p) => ({ ...p, backgroundWaveHeight: Number(e.target.value) }))
-                  }
-                  className="w-full accent-accent-cyan"
-                />
-              </div>
-
-              {/* Wave Length */}
-              <div>
-                <div className="mb-1 flex justify-between font-mono text-xs">
-                  <span className="text-slate-400">Wave Length</span>
-                  <span className="font-bold text-accent-cyan">{bgConfig.backgroundWaveLength}</span>
-                </div>
-                <input
-                  type="range"
-                  min="500"
-                  max="5000"
-                  value={bgConfig.backgroundWaveLength}
-                  onChange={(e) =>
-                    setBgConfig((p) => ({ ...p, backgroundWaveLength: Number(e.target.value) }))
-                  }
-                  className="w-full accent-accent-cyan"
-                />
-              </div>
-
-              {/* Camera Height */}
-              <div>
-                <div className="mb-1 flex justify-between font-mono text-xs">
-                  <span className="text-slate-400">Camera Height</span>
-                  <span className="font-bold text-accent-cyan">{bgConfig.backgroundCameraHeight}</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={bgConfig.backgroundCameraHeight}
-                  onChange={(e) =>
-                    setBgConfig((p) => ({ ...p, backgroundCameraHeight: Number(e.target.value) }))
-                  }
-                  className="w-full accent-accent-cyan"
-                />
-              </div>
-
-              {/* Scatter */}
-              <div>
-                <div className="mb-1 flex justify-between font-mono text-xs">
-                  <span className="text-slate-400">Scatter</span>
-                  <span className="font-bold text-accent-cyan">{bgConfig.backgroundScatter}</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="300"
-                  value={bgConfig.backgroundScatter}
-                  onChange={(e) =>
-                    setBgConfig((p) => ({ ...p, backgroundScatter: Number(e.target.value) }))
-                  }
-                  className="w-full accent-accent-cyan"
-                />
-              </div>
-
-              {/* Tilt Angle */}
-              <div>
-                <div className="mb-1 flex justify-between font-mono text-xs">
-                  <span className="text-slate-400">Tilt Angle</span>
-                  <span className="font-bold text-accent-cyan">{bgConfig.backgroundTiltStart}°</span>
-                </div>
-                <input
-                  type="range"
-                  min="-45"
-                  max="45"
-                  value={bgConfig.backgroundTiltStart}
-                  onChange={(e) =>
-                    setBgConfig((p) => ({ ...p, backgroundTiltStart: Number(e.target.value) }))
-                  }
-                  className="w-full accent-accent-cyan"
-                />
-              </div>
-
-              {/* Roll Angle */}
-              <div>
-                <div className="mb-1 flex justify-between font-mono text-xs">
-                  <span className="text-slate-400">Roll Angle</span>
-                  <span className="font-bold text-accent-cyan">{bgConfig.backgroundRollStart}°</span>
-                </div>
-                <input
-                  type="range"
-                  min="-45"
-                  max="45"
-                  value={bgConfig.backgroundRollStart}
-                  onChange={(e) =>
-                    setBgConfig((p) => ({ ...p, backgroundRollStart: Number(e.target.value) }))
-                  }
-                  className="w-full accent-accent-cyan"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Color Palette Controls */}
-          <div className="space-y-3 rounded-2xl border border-white/10 bg-black/30 p-5">
-            <h4 className="font-orbitron text-xs font-bold uppercase tracking-wider text-accent-cyan">
-              Wave Gradient Chromatics
-            </h4>
-            <div className="flex flex-wrap items-center gap-4">
-              {(bgConfig.backgroundColors || ['#5A4AE0', '#F2D98A']).map((color, idx) => (
-                <div key={idx} className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/40 p-2">
+                {/* Height */}
+                <div>
+                  <div className="flex items-center justify-between font-mono text-xs mb-1">
+                    <span className="text-muted uppercase tracking-wider">Height</span>
+                    <span className="text-accent font-bold tabular-nums">{bgState.height}%</span>
+                  </div>
                   <input
-                    type="color"
-                    value={color}
-                    onChange={(e) => {
-                      const updated = [...(bgConfig.backgroundColors || ['#5A4AE0', '#F2D98A'])];
-                      updated[idx] = e.target.value;
-                      setBgConfig((p) => ({ ...p, backgroundColors: updated }));
-                    }}
-                    className="h-8 w-8 cursor-pointer rounded border-0 bg-transparent"
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={bgState.height}
+                    onChange={(e) => setBackground({ height: Number(e.target.value) })}
+                    className="w-full accent-accent cursor-pointer"
                   />
-                  <span className="font-mono text-xs uppercase text-slate-300">{color}</span>
-                  {(bgConfig.backgroundColors || []).length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const updated = (bgConfig.backgroundColors || []).filter((_, i) => i !== idx);
-                        setBgConfig((p) => ({ ...p, backgroundColors: updated }));
-                      }}
-                      className="ml-2 font-mono text-xs text-accent-red hover:underline"
-                    >
-                      ×
-                    </button>
-                  )}
                 </div>
-              ))}
 
-              {(bgConfig.backgroundColors || []).length < 8 && (
+                {/* Speed */}
+                <div>
+                  <div className="flex items-center justify-between font-mono text-xs mb-1">
+                    <span className="text-muted uppercase tracking-wider">Speed</span>
+                    <span className="text-accent font-bold tabular-nums">{bgState.speed}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={bgState.speed}
+                    onChange={(e) => setBackground({ speed: Number(e.target.value) })}
+                    className="w-full accent-accent cursor-pointer"
+                  />
+                </div>
+
+                {/* Angle */}
+                <div>
+                  <div className="flex items-center justify-between font-mono text-xs mb-1">
+                    <span className="text-muted uppercase tracking-wider">Angle</span>
+                    <span className="text-accent font-bold tabular-nums">{bgState.angle}°</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={360}
+                    value={bgState.angle}
+                    onChange={(e) => setBackground({ angle: Number(e.target.value) })}
+                    className="w-full accent-accent cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {/* Color Pickers */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {/* Color 1: Base */}
+                <div className="p-3 rounded-xl border border-border/50 bg-surface-2/40 space-y-1.5">
+                  <span className="font-mono text-[10px] uppercase text-muted tracking-wider block">
+                    Base Color
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={bgState.color1}
+                      onChange={(e) => setBackground({ color1: e.target.value })}
+                      className="w-7 h-7 rounded border-none bg-transparent cursor-pointer"
+                    />
+                    <input
+                      type="text"
+                      value={bgState.color1}
+                      onChange={(e) => setBackground({ color1: e.target.value })}
+                      className="w-full font-mono text-xs px-2 py-1 rounded bg-surface border border-border uppercase"
+                    />
+                  </div>
+                </div>
+
+                {/* Color 2: Accent */}
+                <div className="p-3 rounded-xl border border-border/50 bg-surface-2/40 space-y-1.5">
+                  <span className="font-mono text-[10px] uppercase text-muted tracking-wider block">
+                    Accent Color
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={bgState.color2}
+                      onChange={(e) => setBackground({ color2: e.target.value })}
+                      className="w-7 h-7 rounded border-none bg-transparent cursor-pointer"
+                    />
+                    <input
+                      type="text"
+                      value={bgState.color2}
+                      onChange={(e) => setBackground({ color2: e.target.value })}
+                      className="w-full font-mono text-xs px-2 py-1 rounded bg-surface border border-border uppercase"
+                    />
+                  </div>
+                </div>
+
+                {/* Color 3: Gold Highlight */}
+                <div className="p-3 rounded-xl border border-border/50 bg-surface-2/40 space-y-1.5">
+                  <span className="font-mono text-[10px] uppercase text-muted tracking-wider block">
+                    Gold Trim
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={bgState.color3}
+                      onChange={(e) => setBackground({ color3: e.target.value })}
+                      className="w-7 h-7 rounded border-none bg-transparent cursor-pointer"
+                    />
+                    <input
+                      type="text"
+                      value={bgState.color3}
+                      onChange={(e) => setBackground({ color3: e.target.value })}
+                      className="w-full font-mono text-xs px-2 py-1 rounded bg-surface border border-border uppercase"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2.5 pt-2">
                 <Button
+                  type="button"
                   variant="secondary"
                   size="sm"
-                  onClick={() =>
-                    setBgConfig((p) => ({
-                      ...p,
-                      backgroundColors: [...(p.backgroundColors || ['#5A4AE0', '#F2D98A']), '#00D9FF'],
-                    }))
-                  }
+                  onClick={resetBackground}
+                  className="flex items-center gap-1.5 font-mono text-xs uppercase"
                 >
-                  + Add Color
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Reset to Defaults
                 </Button>
-              )}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleCopyJson}
+                  className="flex items-center gap-1.5 font-mono text-xs uppercase"
+                >
+                  {copiedJson ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+                  Copy JSON
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Actions */}
-          <div className="flex flex-wrap items-center gap-3 pt-2">
-            <Button variant="primary" size="md" onClick={handleSaveBackground}>
-              Save Background
-            </Button>
-            <Button
-              variant="secondary"
-              size="md"
-              onClick={() => {
-                setBgConfig(DEFAULT_BRANDING);
-                saveBranding(DEFAULT_BRANDING);
-              }}
-            >
-              Reset to Default
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {/* ━━━ SECTION 3: WEAPONS & 3D ASSETS ━━━ */}
-      {activeSection === 'guns' && (
-        <Card className="p-6 space-y-6">
-          <div className="border-b border-white/10 pb-3">
-            <h3 className="font-orbitron text-lg font-bold uppercase text-white">
-              Weapon Holograms & 3D Assets
-            </h3>
-            <p className="font-mono text-xs text-slate-400">
-              Configure floating weapons and arena character emblems
-            </p>
-          </div>
-
-          <div>
-            <label className="mb-2 block font-mono text-xs font-bold uppercase text-slate-400">
-              Holographic Weapon Skin Texture
-            </label>
-            <div className="relative overflow-hidden rounded-2xl border-2 border-dashed border-white/15 bg-white/[0.02] p-8 text-center transition hover:border-bgmi-primary/50">
-              {weaponSkin ? (
-                <div className="flex flex-col items-center">
-                  <img
-                    src={weaponSkin}
-                    alt="Weapon Skin"
-                    className="h-28 w-28 rounded-2xl border border-white/20 object-cover shadow-2xl"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setWeaponSkin(null)}
-                    className="mt-3 font-mono text-xs text-accent-red underline"
-                  >
-                    Reset Texture
-                  </button>
+          {/* ━━━ TAB 2: THEME ━━━ */}
+          {activeTab === 'theme' && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl border border-border/50 bg-surface-2/40 space-y-3">
+                <span className="font-mono text-xs uppercase tracking-wider text-muted block">
+                  Broadcast Theme Mode
+                </span>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['light', 'dark', 'system'] as ThemeMode[]).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setThemeMode(t)}
+                      className={cn(
+                        'py-2 px-3 rounded-lg border font-mono text-xs uppercase tracking-wider transition-all',
+                        themeMode === t
+                          ? 'border-accent bg-accent/15 text-accent font-bold shadow-[0_0_12px_var(--accent-glow)]'
+                          : 'border-border/60 bg-surface/50 text-muted hover:text-foreground'
+                      )}
+                    >
+                      {t}
+                    </button>
+                  ))}
                 </div>
-              ) : (
-                <>
-                  <Crosshair className="mx-auto h-8 w-8 text-slate-400" />
-                  <p className="mt-2 font-mono text-xs text-slate-300">
-                    Upload GLTF / PNG Weapon Skin texture
+                <p className="font-sans text-xs text-muted pt-1">
+                  Synced across authenticated browser instances in real-time via Firestore.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ━━━ TAB 3: DATA ━━━ */}
+          {activeTab === 'data' && (
+            <div className="space-y-3.5">
+              <div className="p-4 rounded-xl border border-border/50 bg-surface-2/40 flex items-center justify-between">
+                <div>
+                  <h3 className="font-mono text-xs font-bold uppercase text-foreground">Export Tournament JSON</h3>
+                  <p className="font-sans text-xs text-muted mt-0.5">
+                    Download full tournament teams, rosters, matches, and standings.
                   </p>
+                </div>
+                <Button type="button" variant="primary" size="sm" onClick={handleExportData}>
+                  <Download className="w-3.5 h-3.5 mr-1.5" />
+                  Export
+                </Button>
+              </div>
+
+              <div className="p-4 rounded-xl border border-border/50 bg-surface-2/40 flex items-center justify-between">
+                <div>
+                  <h3 className="font-mono text-xs font-bold uppercase text-foreground">Import Tournament Backup</h3>
+                  <p className="font-sans text-xs text-muted mt-0.5">
+                    Upload validated schema JSON to restore tournament data.
+                  </p>
+                </div>
+                <label className="cursor-pointer">
                   <input
                     type="file"
-                    accept="image/*"
-                    className="absolute inset-0 cursor-pointer opacity-0"
-                    onChange={handleWeaponUpload}
+                    accept=".json"
+                    onChange={handleImportFileSelect}
+                    className="hidden"
                   />
-                </>
-              )}
-            </div>
-          </div>
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-lg border border-border bg-surface text-xs font-mono font-semibold uppercase hover:border-accent transition-colors">
+                    <Upload className="w-3.5 h-3.5 mr-1.5" />
+                    Import
+                  </span>
+                </label>
+              </div>
 
-          <Button variant="primary" size="md">
-            Update 3D Assets
-          </Button>
-        </Card>
-      )}
-
-      {/* ━━━ SECTION 4: CONTACT & SUPPORT ━━━ */}
-      {activeSection === 'contact' && (
-        <Card className="p-6 space-y-6">
-          <div className="border-b border-white/10 pb-3">
-            <h3 className="font-orbitron text-lg font-bold uppercase text-white">
-              Communication Channels
-            </h3>
-            <p className="font-mono text-xs text-slate-400">
-              Links shown to squads and spectators
-            </p>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <Input label="Discord Community Link" defaultValue="https://discord.gg/gsarena" />
-            <Input label="WhatsApp Support Group" defaultValue="https://chat.whatsapp.com/sample" />
-            <Input label="Support Email" defaultValue="support@gsarena.gg" />
-            <Input label="Official YouTube Stream" defaultValue="https://youtube.com/@gsarena" />
-          </div>
-
-          <Button variant="primary" size="md">
-            Save Support Channels
-          </Button>
-        </Card>
-      )}
-
-      {/* ━━━ SECTION 5: PUBLIC VIEWER ━━━ */}
-      {activeSection === 'viewer' && (
-        <Card className="p-6 space-y-6">
-          <div className="border-b border-white/10 pb-3">
-            <h3 className="font-orbitron text-lg font-bold uppercase text-white">
-              Public Viewer Portal
-            </h3>
-            <p className="font-mono text-xs text-slate-400">
-              Spectator portal without administration controls
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-white/10 bg-black/40 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="font-rajdhani text-sm font-bold uppercase text-white">
-                  Public Spectator URL
+              <div className="p-4 rounded-xl border border-border/50 bg-surface-2/40 flex items-center justify-between">
+                <div>
+                  <h3 className="font-mono text-xs font-bold uppercase text-danger">Wipe Local Client Cache</h3>
+                  <p className="font-sans text-xs text-muted mt-0.5">
+                    Clear local storage and cached preferences.
+                  </p>
                 </div>
-                <div className="font-mono text-xs text-accent-cyan">
-                  https://gsarena.gg/viewer
+                <Button type="button" variant="danger" size="sm" onClick={handleWipeCache}>
+                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                  Wipe
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* ━━━ TAB 4: DIAGNOSTICS ━━━ */}
+          {activeTab === 'diagnostics' && (
+            <div className="space-y-3 font-mono text-xs">
+              <div className="grid grid-cols-2 gap-2.5">
+                {/* WebGL2 Status */}
+                <div className="p-3.5 rounded-xl border border-border/50 bg-surface-2/40 space-y-1">
+                  <span className="text-[10px] uppercase text-muted tracking-wider">WebGL2 Context</span>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        'w-2 h-2 rounded-full',
+                        isWebGL2 ? 'bg-success shadow-[0_0_8px_#22c55e]' : 'bg-danger'
+                      )}
+                    />
+                    <span className="font-bold uppercase text-foreground">
+                      {isWebGL2 ? 'Hardware Accelerated' : 'Unavailable'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Frame Rate */}
+                <div className="p-3.5 rounded-xl border border-border/50 bg-surface-2/40 space-y-1">
+                  <span className="text-[10px] uppercase text-muted tracking-wider">Live Frame Rate</span>
+                  <div className="flex items-center gap-2">
+                    <Radio className="w-3 h-3 text-accent animate-pulse" />
+                    <span className="font-bold tabular-nums text-foreground">{fps} FPS</span>
+                  </div>
+                </div>
+
+                {/* Firestore Sync */}
+                <div className="p-3.5 rounded-xl border border-border/50 bg-surface-2/40 space-y-1">
+                  <span className="text-[10px] uppercase text-muted tracking-wider">Firestore Link</span>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        'w-2 h-2 rounded-full',
+                        connectionStatus === 'online' ? 'bg-success' : 'bg-warn'
+                      )}
+                    />
+                    <span className="font-bold uppercase text-foreground">{connectionStatus}</span>
+                  </div>
+                </div>
+
+                {/* Build Version */}
+                <div className="p-3.5 rounded-xl border border-border/50 bg-surface-2/40 space-y-1">
+                  <span className="text-[10px] uppercase text-muted tracking-wider">Circuit Build</span>
+                  <div className="font-bold text-foreground">v1.0.0-NOIR</div>
                 </div>
               </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  navigator.clipboard.writeText('https://gsarena.gg/viewer');
-                  alert('Copied spectator URL to clipboard.');
-                }}
-              >
-                Copy Link
-              </Button>
+
+              <div className="p-3 rounded-xl border border-border/40 bg-surface-2/20 text-[11px] text-muted flex items-center justify-between">
+                <span>Last Telemetry Sync:</span>
+                <span className="font-bold text-foreground tabular-nums">
+                  {new Date().toLocaleTimeString()}
+                </span>
+              </div>
             </div>
-          </div>
-        </Card>
-      )}
-
-      {/* ━━━ SECTION 6: DEMO DATA ━━━ */}
-      {activeSection === 'demo' && (
-        <Card className="p-6 space-y-6">
-          <div className="border-b border-white/10 pb-3">
-            <h3 className="font-orbitron text-lg font-bold uppercase text-white">
-              Demo Sandbox Generator
-            </h3>
-            <p className="font-mono text-xs text-slate-400">
-              Generate dummy squads and test match results
-            </p>
-          </div>
-
-          <p className="font-sans text-sm text-slate-300">
-            Inject mock squads (Soul, GodLike, TeamIND, 8Bit) and randomized match placements to test
-            leaderboard calculations and 3D podiums.
-          </p>
-
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={() => alert('Demo squads and match scores populated successfully!')}
-          >
-            <Zap className="h-4 w-4 text-accent-amber" />
-            <span>Seed 16 Demo Squads</span>
-          </Button>
-        </Card>
-      )}
+          )}
+        </div>
+      </div>
     </div>
   );
 }
