@@ -15,7 +15,6 @@ import {
   ArrowLeft,
   Users,
 } from 'lucide-react';
-import { CosmicBackground } from '../components/CosmicBackground';
 import { TournamentProvider } from '../context/TournamentContext';
 import { useCreator } from '../hooks/useCreator';
 import { useAuth } from '../context/AuthContext';
@@ -28,9 +27,14 @@ import { CSLeagueStandingsPage } from './CSLeagueStandingsPage';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { TagChip } from '../components/ui/TagChip';
 import { cn } from '../lib/cn';
 import type { Game } from '../types';
 
+/**
+ * Public scoreboard viewer portal with deep linking and password protection gate.
+ * Renders live leaderboards, analytics, and brackets over the global WebGL ribbon.
+ */
 export function PublicViewerPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { config, loading } = useCreator();
@@ -149,11 +153,10 @@ export function PublicViewerPage() {
   // Loading Screen
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#03040a] text-white flex flex-col justify-center items-center p-6 text-center">
-        <CosmicBackground />
+      <div className="min-h-screen bg-transparent text-foreground flex flex-col justify-center items-center p-6 text-center">
         <div className="relative z-10 flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-full border-2 border-orange-500 border-t-transparent animate-spin" />
-          <p className="text-xs text-slate-300 font-mono tracking-wider uppercase">Loading Public Standings...</p>
+          <div className="w-10 h-10 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+          <p className="text-xs text-muted font-mono tracking-wider uppercase">Loading Public Standings...</p>
         </div>
       </div>
     );
@@ -162,16 +165,15 @@ export function PublicViewerPage() {
   // Disabled Screen
   if (!loading && config && config.publicViewerEnabled === false && !isAdmin) {
     return (
-      <div className="min-h-screen bg-[#03040a] text-white flex flex-col justify-center items-center p-6 text-center">
-        <CosmicBackground />
-        <Card className="relative z-10 max-w-md p-8 border border-white/10 space-y-4">
+      <div className="min-h-screen bg-transparent text-foreground flex flex-col justify-center items-center p-6 text-center">
+        <Card className="relative z-10 max-w-md p-8 border border-border bg-surface/80 backdrop-blur-xl space-y-4">
           <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
             <Globe className="w-7 h-7" />
           </div>
-          <h2 className="text-2xl font-bold font-['Teko',sans-serif] text-3xl">
+          <h2 className="text-2xl font-bold font-mono uppercase tracking-tight">
             Public Viewing Disabled
           </h2>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-muted">
             Public viewing is currently disabled by the tournament administrator. Please check back later or log in to manage settings.
           </p>
           <div className="pt-2 flex items-center justify-center gap-3">
@@ -194,17 +196,16 @@ export function PublicViewerPage() {
   // Password Protected Gate
   if (!loading && config?.publicPasswordRequired && !isUnlocked && !isAdmin) {
     return (
-      <div className="min-h-screen bg-[#03040a] text-white flex flex-col justify-center items-center p-6 text-center">
-        <CosmicBackground />
-        <Card className="relative z-10 max-w-md w-full p-8 border border-white/15 space-y-5 text-left">
-          <div className="w-14 h-14 rounded-2xl bg-orange-500/10 border border-orange-500/30 flex items-center justify-center mx-auto text-orange-400 text-center">
+      <div className="min-h-screen bg-transparent text-foreground flex flex-col justify-center items-center p-6 text-center">
+        <Card className="relative z-10 max-w-md w-full p-8 border border-border bg-surface/80 backdrop-blur-xl space-y-5 text-left">
+          <div className="w-14 h-14 rounded-2xl bg-accent/10 border border-accent/30 flex items-center justify-center mx-auto text-accent text-center">
             <Lock className="w-7 h-7" />
           </div>
           <div className="text-center">
-            <h2 className="text-2xl font-black font-['Teko',sans-serif] text-3xl uppercase tracking-wide text-white">
+            <h2 className="text-2xl font-bold font-mono uppercase tracking-wide text-foreground">
               Password Protected Viewer
             </h2>
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-muted mt-1">
               Please enter the tournament access password to view live statistics and brackets.
             </p>
           </div>
@@ -224,7 +225,7 @@ export function PublicViewerPage() {
             </Button>
           </form>
           <div className="pt-2 text-center">
-            <Link to="/" className="text-xs text-slate-400 hover:text-white transition-colors">
+            <Link to="/" className="text-xs text-muted hover:text-foreground transition-colors font-mono">
               ← Return to Main Portal
             </Link>
           </div>
@@ -235,11 +236,9 @@ export function PublicViewerPage() {
 
   return (
     <TournamentProvider key={selectedGame} game={selectedGame}>
-      <div className="relative min-h-screen bg-[#03040a] text-white flex flex-col justify-between">
-        <CosmicBackground />
-
+      <div className="relative min-h-screen bg-transparent text-foreground flex flex-col justify-between">
         {/* Minimal Public Header */}
-        <header className="relative z-20 w-full px-4 sm:px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-orange-500/20 bg-black/60 backdrop-blur-xl">
+        <header className="relative z-20 w-full px-4 sm:px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border bg-surface/75 backdrop-blur-xl">
           <div className="flex items-center gap-3">
             <Link to="/" className="flex items-center gap-3.5 group" title="Return to Main Arena">
               {/* GS Arena Logo */}
@@ -265,16 +264,16 @@ export function PublicViewerPage() {
               </div>
 
               <div>
-                <h1 className="text-2xl md:text-3xl font-black font-['Teko',sans-serif] tracking-tight leading-none uppercase text-transparent bg-clip-text bg-gradient-to-r from-white via-orange-100 to-amber-200 drop-shadow-[0_0_12px_rgba(255,107,53,0.3)] flex items-center gap-2">
+                <h1 className="text-xl md:text-2xl font-bold font-mono tracking-tight leading-none uppercase text-foreground flex items-center gap-2">
                   GS ARENA
-                  <span className="text-[10px] uppercase font-sans font-extrabold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  <span className="text-[10px] uppercase font-mono font-bold px-1.5 py-0.5 rounded bg-accent/20 text-accent border border-accent/30">
                     PUBLIC VIEWER
                   </span>
                 </h1>
-                <p className="flex items-center gap-2 text-xs md:text-sm text-white/60 mt-1.5">
+                <p className="flex items-center gap-2 text-xs md:text-sm text-muted mt-1.5 font-mono">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   Live Spectator Feed
-                  <span className="text-white/30">•</span>
+                  <span className="text-border">•</span>
                   Real-Time Standings
                 </p>
               </div>
@@ -283,15 +282,15 @@ export function PublicViewerPage() {
 
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             {/* Game Selector */}
-            <div className="flex items-center bg-black/60 p-1 rounded-xl border border-white/10">
+            <div className="flex items-center bg-surface-2/80 p-1 rounded-xl border border-border">
               <button
                 type="button"
                 onClick={() => handleSelectGame('BGMI')}
                 className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer',
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer',
                   selectedGame === 'BGMI'
-                    ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md'
-                    : 'text-gray-400 hover:text-white'
+                    ? 'bg-accent text-white shadow-md'
+                    : 'text-muted hover:text-foreground'
                 )}
               >
                 <Gamepad2 className="w-3.5 h-3.5" />
@@ -301,10 +300,10 @@ export function PublicViewerPage() {
                 type="button"
                 onClick={() => handleSelectGame('Free Fire')}
                 className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer',
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer',
                   selectedGame === 'Free Fire'
-                    ? 'bg-gradient-to-r from-red-600 to-orange-500 text-white shadow-md'
-                    : 'text-gray-400 hover:text-white'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'text-muted hover:text-foreground'
                 )}
               >
                 <Flame className="w-3.5 h-3.5" />
@@ -316,10 +315,10 @@ export function PublicViewerPage() {
             <button
               type="button"
               onClick={handleCopyShareLink}
-              className="text-xs text-slate-200 hover:text-white flex items-center gap-1.5 bg-white/5 hover:bg-white/10 px-3 py-2 rounded-xl border border-white/10 transition-colors cursor-pointer"
+              className="text-xs text-muted hover:text-foreground flex items-center gap-1.5 bg-surface-2/80 hover:bg-surface px-3 py-2 rounded-xl border border-border transition-colors cursor-pointer font-mono"
               title="Copy Spectator Link"
             >
-              {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5 text-amber-400" />}
+              {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5 text-accent" />}
               <span>{copiedLink ? 'Link Copied!' : 'Share Link'}</span>
             </button>
 
@@ -328,7 +327,7 @@ export function PublicViewerPage() {
               <button
                 type="button"
                 onClick={() => openLoginModal()}
-                className="text-xs text-gray-300 hover:text-white flex items-center gap-1 bg-white/5 hover:bg-white/10 px-3 py-2 rounded-xl border border-white/10 transition-colors cursor-pointer"
+                className="text-xs text-muted hover:text-foreground flex items-center gap-1 bg-surface-2/80 hover:bg-surface px-3 py-2 rounded-xl border border-border transition-colors cursor-pointer font-mono"
               >
                 <LogIn className="w-3.5 h-3.5" />
                 <span>Admin Login</span>
@@ -336,7 +335,7 @@ export function PublicViewerPage() {
             ) : (
               <Link
                 to="/"
-                className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1 bg-orange-500/10 hover:bg-orange-500/20 px-3 py-2 rounded-xl border border-orange-500/30 transition-colors"
+                className="text-xs text-accent hover:opacity-80 flex items-center gap-1 bg-accent/10 hover:bg-accent/20 px-3 py-2 rounded-xl border border-accent/30 transition-colors font-mono"
               >
                 <Trophy className="w-3.5 h-3.5" />
                 <span>Admin Console</span>
@@ -346,16 +345,16 @@ export function PublicViewerPage() {
         </header>
 
         {/* Navigation Tabs */}
-        <div className="relative z-15 w-full border-b border-white/10 bg-black/40 backdrop-blur-sm px-4 sm:px-6 py-2 overflow-x-auto">
+        <div className="relative z-15 w-full border-b border-border bg-surface/50 backdrop-blur-sm px-4 sm:px-6 py-2 overflow-x-auto">
           <div className="max-w-7xl mx-auto flex items-center gap-2">
             <button
               type="button"
               onClick={() => handleSelectTab('leaderboard')}
               className={cn(
-                'flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0',
+                'flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer shrink-0',
                 activeTab === 'leaderboard'
-                  ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-accent/20 text-accent border border-accent/30'
+                  : 'text-muted hover:text-foreground hover:bg-surface-2'
               )}
             >
               <Trophy className="w-3.5 h-3.5" />
@@ -365,10 +364,10 @@ export function PublicViewerPage() {
               type="button"
               onClick={() => handleSelectTab('analytics')}
               className={cn(
-                'flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0',
+                'flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer shrink-0',
                 activeTab === 'analytics'
-                  ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-accent/20 text-accent border border-accent/30'
+                  : 'text-muted hover:text-foreground hover:bg-surface-2'
               )}
             >
               <BarChart3 className="w-3.5 h-3.5" />
@@ -380,10 +379,10 @@ export function PublicViewerPage() {
                   type="button"
                   onClick={() => handleSelectTab('cs-standings')}
                   className={cn(
-                    'flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0',
+                    'flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer shrink-0',
                     activeTab === 'cs-standings'
                       ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                      : 'text-gray-400 hover:text-white hover:bg-white/5'
+                      : 'text-muted hover:text-foreground hover:bg-surface-2'
                   )}
                 >
                   <Users className="w-3.5 h-3.5" />
@@ -393,10 +392,10 @@ export function PublicViewerPage() {
                   type="button"
                   onClick={() => handleSelectTab('bracket')}
                   className={cn(
-                    'flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0',
+                    'flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer shrink-0',
                     activeTab === 'bracket'
                       ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                      : 'text-gray-400 hover:text-white hover:bg-white/5'
+                      : 'text-muted hover:text-foreground hover:bg-surface-2'
                   )}
                 >
                   <Swords className="w-3.5 h-3.5" />
@@ -415,14 +414,14 @@ export function PublicViewerPage() {
           {activeTab === 'bracket' && selectedGame === 'Free Fire' && <CSBracketPage propGame={selectedGame} />}
         </main>
 
-        <footer className="relative z-20 w-full py-4 px-6 border-t border-white/10 text-center text-xs text-gray-500 bg-black/40 flex flex-col sm:flex-row items-center justify-between gap-2 max-w-7xl mx-auto">
+        <footer className="relative z-20 w-full py-4 px-6 border-t border-border text-center text-xs text-muted bg-surface/60 flex flex-col sm:flex-row items-center justify-between gap-2 max-w-7xl mx-auto font-mono">
           <span>Powered by GS Arena • Real-Time Cloud Spectator Feed</span>
           <div className="flex items-center gap-3">
-            <Link to="/" className="text-amber-400 hover:text-amber-300 transition-colors">
+            <Link to="/" className="text-accent hover:opacity-80 transition-colors">
               Tournament Portal
             </Link>
-            <span className="text-gray-600">•</span>
-            <Link to="/register" className="text-slate-400 hover:text-white transition-colors">
+            <span className="text-border">•</span>
+            <Link to="/register" className="text-muted hover:text-foreground transition-colors">
               Squad Registration
             </Link>
           </div>

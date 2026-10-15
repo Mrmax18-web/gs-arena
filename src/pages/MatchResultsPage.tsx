@@ -21,7 +21,8 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { TiltCard } from '../components/ui/TiltCard';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { fireConfetti } from '../components/ui/Confetti';
+import { TagChip } from '../components/ui/TagChip';
+import { LiveBadge } from '../components/ui/LiveBadge';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
@@ -30,6 +31,10 @@ import { MatchCountdown } from '../components/MatchCountdown';
 import { cn } from '../lib/cn';
 import type { Match, Team } from '../types';
 
+/**
+ * Broadcast-grade match scoring and operations desk.
+ * Controls match schedules, real-time round tallies, and victor allocation.
+ */
 export function MatchResultsPage() {
   const { currentGame } = useGame();
   const outletContext = useOutletContext<LayoutContextType | null>();
@@ -90,7 +95,6 @@ export function MatchResultsPage() {
         status: 'done',
         endedAt: new Date().toISOString(),
       });
-      fireConfetti();
     } catch (err) {
       console.warn('Failed to end match:', err);
     }
@@ -114,9 +118,6 @@ export function MatchResultsPage() {
         winnerTeamId: winnerId,
       });
 
-      if (matchStatus === 'done') {
-        fireConfetti();
-      }
       setScoringMatch(null);
     } catch (err: unknown) {
       console.warn('Error saving match score:', err);
@@ -217,16 +218,13 @@ export function MatchResultsPage() {
                           {m.mapName || 'Erangel'}
                         </span>
                       </div>
-                      <span
-                        className={cn(
-                          'text-xs uppercase font-bold px-2 py-0.5 rounded-full border',
-                          isLive && 'bg-rose-500/20 text-rose-300 border-rose-500/40 animate-pulse',
-                          isDone && 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
-                          !isLive && !isDone && 'bg-blue-500/20 text-blue-300 border-blue-500/40'
-                        )}
-                      >
-                        {m.status}
-                      </span>
+                      {isLive ? (
+                        <LiveBadge label="LIVE BATTLE" />
+                      ) : isDone ? (
+                        <TagChip label="COMPLETED" variant="success" size="sm" />
+                      ) : (
+                        <TagChip label={m.status.toUpperCase()} variant="cyan" size="sm" />
+                      )}
                     </div>
 
                     {/* Teams Confrontation Row */}

@@ -41,6 +41,10 @@ import {
   type ImportStrategy,
 } from '../lib/dataImport';
 
+/**
+ * Admin data management page for tournament backups, JSON/Excel/CSV exports,
+ * and bulk data imports with preview and validation.
+ */
 export function AdminDataPage() {
   const { game } = useOutletContext<LayoutContextType>();
   const { activeTournament, setActiveTournament } = useTournament();

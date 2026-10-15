@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { CheckCircle2, Trophy, ArrowRight, ShieldCheck, Mail, Clock } from 'lucide-react';
-import confetti from 'canvas-confetti';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 
@@ -20,17 +19,6 @@ export function Step5Success({
   game,
   mode,
 }: Step5SuccessProps) {
-  useEffect(() => {
-    try {
-      confetti({
-        particleCount: 60,
-        spread: 70,
-        origin: { y: 0.6 },
-      });
-    } catch {
-      // ignore
-    }
-  }, []);
 
   const referenceCode = registrationId
     ? `REG-${registrationId.slice(0, 8).toUpperCase()}`

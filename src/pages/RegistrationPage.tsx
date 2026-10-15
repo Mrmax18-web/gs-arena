@@ -39,6 +39,7 @@ import { Modal } from '../components/ui/Modal';
 import { EmptyState } from '../components/EmptyState';
 import { DisqualifyModal } from '../components/DisqualifyModal';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { TagChip } from '../components/ui/TagChip';
 import { cn } from '../lib/cn';
 import type { Team, Game } from '../types';
 
@@ -46,6 +47,10 @@ export interface RegistrationPageProps {
   propGame?: Game;
 }
 
+/**
+ * Broadcast-grade team management and roster control console.
+ * Supports squad editing, slot allocations, and disciplinary disqualification.
+ */
 export function RegistrationPage({ propGame }: RegistrationPageProps = {}) {
   const { currentGame } = useGame();
   const context = useOutletContext<LayoutContextType | null>();
@@ -367,24 +372,24 @@ export function RegistrationPage({ propGame }: RegistrationPageProps = {}) {
             const isDQ = Boolean(team.disqualified);
 
             return (
-              <TiltCard key={team.id} intensity={8} glow={isDQ ? '#E11D48' : '#FF6B35'}>
+              <TiltCard key={team.id} intensity={8} glow={isDQ ? '#E11D48' : 'var(--accent)'}>
                 <Card
                   className={cn(
-                    'h-full p-5 flex flex-col justify-between transition-all border',
+                    'h-full p-5 flex flex-col justify-between transition-all border rounded-2xl',
                     isDQ
-                      ? 'border-rose-500/40 bg-rose-950/20 opacity-80 hover:opacity-100'
-                      : 'border-white/10 bg-gradient-to-br from-white/[0.04] to-black/60 hover:border-orange-500/40'
+                      ? 'border-danger/40 bg-danger/10 opacity-80 hover:opacity-100'
+                      : 'border-border bg-surface/75 backdrop-blur-md hover:border-accent/40 shadow-xl'
                   )}
                 >
                   <div>
                     {/* Top DQ Banner if Disqualified */}
                     {isDQ && (
-                      <div className="mb-3 px-3 py-1.5 rounded-lg bg-rose-500/20 border border-rose-500/40 flex items-center justify-between text-xs text-rose-300">
-                        <span className="font-extrabold uppercase tracking-wider flex items-center gap-1.5">
-                          <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
+                      <div className="mb-3 px-3 py-1.5 rounded-lg bg-danger/20 border border-danger/40 flex items-center justify-between text-xs text-danger">
+                        <span className="font-extrabold uppercase tracking-wider flex items-center gap-1.5 font-mono">
+                          <ShieldAlert className="w-3.5 h-3.5 text-danger" />
                           DISQUALIFIED
                         </span>
-                        <span className="text-[10px] text-rose-400/80 font-mono">
+                        <span className="text-[10px] text-danger/80 font-mono">
                           {team.disqualifiedAt ? new Date(team.disqualifiedAt).toLocaleDateString() : 'Inactive'}
                         </span>
                       </div>
@@ -398,16 +403,16 @@ export function RegistrationPage({ propGame }: RegistrationPageProps = {}) {
                             alt={team.teamName}
                             className={cn(
                               'w-11 h-11 rounded-xl object-cover border shrink-0',
-                              isDQ ? 'border-rose-500/40 grayscale' : 'border-white/20'
+                              isDQ ? 'border-danger/40 grayscale' : 'border-border'
                             )}
                           />
                         ) : (
                           <div
                             className={cn(
-                              'w-11 h-11 rounded-xl flex items-center justify-center text-white font-black text-sm shrink-0',
+                              'w-11 h-11 rounded-xl flex items-center justify-center text-white font-black text-sm shrink-0 font-mono',
                               isDQ
-                                ? 'bg-rose-900/60 border border-rose-500/30'
-                                : 'bg-gradient-to-tr from-orange-600 to-amber-500 shadow-md'
+                                ? 'bg-danger/40 border border-danger/30'
+                                : 'bg-gradient-to-tr from-accent to-accent-orange shadow-md'
                             )}
                           >
                             {team.teamName.slice(0, 2).toUpperCase()}
@@ -417,22 +422,18 @@ export function RegistrationPage({ propGame }: RegistrationPageProps = {}) {
                           <h2
                             title={team.teamName}
                             className={cn(
-                              "text-lg font-bold font-['Teko',sans-serif] text-2xl truncate leading-tight",
-                              isDQ ? 'line-through text-slate-400' : 'text-white'
+                              "text-lg font-bold font-mono tracking-tight text-2xl truncate leading-tight",
+                              isDQ ? 'line-through text-muted' : 'text-foreground'
                             )}
                           >
                             {team.teamName}
                           </h2>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             {team.teamTag && (
-                              <span className="text-xs font-mono font-bold text-orange-400 bg-orange-500/10 px-2 py-0.5 rounded border border-orange-500/20">
-                                [{team.teamTag}]
-                              </span>
+                              <TagChip label={`[${team.teamTag}]`} variant="accent" size="sm" />
                             )}
                             {team.isDemo && (
-                              <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-amber-500/20 border border-amber-500/40 text-amber-300 rounded">
-                                🧪 DEMO
-                              </span>
+                              <TagChip label="DEMO" variant="warn" size="sm" />
                             )}
                           </div>
                         </div>

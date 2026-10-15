@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { CSBracket } from '../components/cs/CSBracket';
 import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/EmptyState';
+import { TagChip } from '../components/ui/TagChip';
 import { createMatch } from '../lib/firestore';
 import type { Game } from '../types';
 
@@ -15,6 +16,10 @@ export interface CSPlayoffBracketPageProps {
   propGame?: Game;
 }
 
+/**
+ * Broadcast-grade Clash Squad championship playoff knockout bracket.
+ * Displays final-stage semi-finals and grand final trees for top qualifying seeds.
+ */
 export function CSPlayoffBracketPage({ propGame }: CSPlayoffBracketPageProps = {}) {
   const context = useOutletContext<LayoutContextType | null>();
   const { activeTournament } = useTournament();
@@ -93,33 +98,18 @@ export function CSPlayoffBracketPage({ propGame }: CSPlayoffBracketPageProps = {
 
   return (
     <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-2xl p-5 border border-white/10 bg-black/40">
-        <div className="absolute inset-0 pointer-events-none">
-          <img
-            src="/freefire-icon.png"
-            alt=""
-            role="presentation"
-            className="w-full h-full object-cover opacity-20"
-            onError={(e) => {
-              (e.target as HTMLElement).style.display = 'none';
-            }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-red-950/80 via-black/90 to-[#03040a]" />
-        </div>
-
+      <div className="relative overflow-hidden rounded-2xl p-6 border border-border bg-surface/75 backdrop-blur-md">
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs uppercase font-extrabold tracking-widest px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">
-                {game} Clash Squad
-              </span>
-              <span className="text-xs text-amber-400 font-bold">Championship Finals</span>
+            <div className="flex items-center gap-2 mb-1.5">
+              <TagChip label={`${game} Clash Squad`} variant="accent" size="sm" />
+              <TagChip label="CHAMPIONSHIP FINALS" variant="warn" size="sm" />
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-3 font-['Teko',sans-serif] text-4xl">
-              <Trophy className="w-8 h-8 text-amber-400" />
+            <h1 className="text-3xl sm:text-4xl font-black text-foreground tracking-tight flex items-center gap-3 font-mono">
+              <Trophy className="w-8 h-8 text-warn" />
               CS Playoff Knockout Bracket
             </h1>
-            <p className="text-sm text-gray-400 mt-1">
+            <p className="text-sm text-muted mt-1 font-sans">
               Post-group stage single-elimination finals. Top seeded squads battle for the title.
             </p>
           </div>

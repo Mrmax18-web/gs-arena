@@ -9,9 +9,9 @@ import {
   MessageCircle,
   Search,
 } from 'lucide-react';
-import { CosmicBackground } from '../components/CosmicBackground';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { TagChip } from '../components/ui/TagChip';
 
 interface FAQItem {
   id: number;
@@ -93,6 +93,10 @@ const FAQS: FAQItem[] = [
   },
 ];
 
+/**
+ * Frequently Asked Questions (FAQ) and tournament knowledge base.
+ * Explains registration protocols, UPI requirements, match procedures, and prize disbursements.
+ */
 export function FAQPage() {
   const [openId, setOpenId] = useState<number | null>(1);
   const [searchQuery, setSearchQuery] = useState('');
@@ -108,20 +112,18 @@ export function FAQPage() {
   );
 
   return (
-    <div className="relative min-h-screen bg-[#03040a] text-white flex flex-col justify-between">
-      <CosmicBackground />
-
+    <div className="relative min-h-screen text-foreground flex flex-col justify-between">
       {/* Header */}
-      <header className="relative z-20 w-full px-4 sm:px-8 py-4 flex items-center justify-between border-b border-white/10 bg-black/50 backdrop-blur-md sticky top-0">
+      <header className="relative z-20 w-full px-4 sm:px-8 py-4 flex items-center justify-between border-b border-border bg-surface/75 backdrop-blur-md sticky top-0">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-600 to-amber-500 flex items-center justify-center shadow-lg shadow-orange-500/20">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-accent to-accent-orange flex items-center justify-center shadow-lg shadow-accent/20">
             <HelpCircle className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold font-['Teko',sans-serif] tracking-wider leading-none text-white">
+            <h1 className="text-xl sm:text-2xl font-black font-mono tracking-wider leading-none text-foreground">
               FREQUENTLY ASKED QUESTIONS
             </h1>
-            <span className="text-xs text-slate-300 font-mono tracking-widest block uppercase">
+            <span className="text-xs text-muted font-mono tracking-widest block uppercase mt-0.5">
               Help Center & Tournament Knowledge Base
             </span>
           </div>
@@ -129,31 +131,31 @@ export function FAQPage() {
 
         <Link
           to="/"
-          className="text-xs text-slate-300 hover:text-white flex items-center gap-1.5 transition-colors font-medium bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg border border-white/10"
+          className="text-xs text-muted hover:text-foreground flex items-center gap-1.5 transition-colors font-mono bg-surface hover:bg-surface-2 px-3 py-1.5 rounded-lg border border-border"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Back to Arena</span>
         </Link>
       </header>
 
-      {/* Main Content */}
-      <main className="relative z-10 flex-1 w-full max-w-4xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6 my-4">
+      {/* Main Content with 68ch measure */}
+      <main className="relative z-10 flex-1 w-full max-w-[68ch] mx-auto p-4 sm:p-6 lg:p-8 space-y-6 my-4">
         {/* Search Header */}
         <div className="text-center space-y-3">
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-white font-['Teko',sans-serif] tracking-wide">
+          <h2 className="text-3xl sm:text-4xl font-black text-foreground font-mono tracking-wide">
             How can we help your squad?
           </h2>
-          <p className="text-sm text-slate-300 max-w-lg mx-auto leading-relaxed">
+          <p className="text-sm text-muted max-w-lg mx-auto leading-relaxed font-sans">
             Find immediate answers regarding squad registrations, payment receipts, match room distribution, and competitive brackets.
           </p>
           <div className="relative max-w-md mx-auto mt-4">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-4 h-4 text-muted absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               placeholder="Search answers (e.g. UPI, entry fee, roster, streams)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-11 pl-10 pr-4 rounded-xl bg-white/5 border border-white/15 text-white placeholder-slate-400 text-xs sm:text-sm outline-none focus:border-orange-500 focus:bg-white/[0.08] transition-all"
+              className="w-full h-11 pl-10 pr-4 rounded-xl bg-surface border border-border text-foreground placeholder-muted text-xs sm:text-sm outline-none focus:border-accent transition-colors"
             />
           </div>
         </div>
@@ -161,7 +163,7 @@ export function FAQPage() {
         {/* FAQ Accordion List */}
         <div className="space-y-3 pt-2">
           {filteredFaqs.length === 0 ? (
-            <div className="p-8 text-center text-slate-400 text-sm glass-card rounded-2xl border border-white/10">
+            <div className="p-8 text-center text-muted text-sm rounded-2xl border border-border bg-surface/75 backdrop-blur-md font-mono">
               No matching questions found. Try a different search term or contact our support team.
             </div>
           ) : (
@@ -171,25 +173,23 @@ export function FAQPage() {
               return (
                 <Card
                   key={faq.id}
-                  className="border border-white/10 bg-black/40 overflow-hidden transition-all"
+                  className="border border-border bg-surface/75 backdrop-blur-md overflow-hidden transition-all rounded-2xl shadow-md hover:border-accent/30"
                 >
                   <button
                     type="button"
                     onClick={() => toggleAccordion(faq.id)}
-                    className="w-full p-4 sm:p-5 flex items-center justify-between gap-4 text-left transition-colors hover:bg-white/[0.02] cursor-pointer"
+                    className="w-full p-4 sm:p-5 flex items-center justify-between gap-4 text-left transition-colors hover:bg-surface-2 cursor-pointer"
                   >
                     <div className="flex items-center gap-3">
-                      <span className="text-xs font-mono font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                        Q{faq.id}
-                      </span>
-                      <h3 className="text-base sm:text-lg font-bold text-white font-['Teko',sans-serif] tracking-wide">
+                      <TagChip label={`Q${faq.id}`} variant="accent" size="sm" />
+                      <h3 className="text-base sm:text-lg font-bold text-foreground font-mono tracking-wide">
                         {faq.question}
                       </h3>
                     </div>
                     <motion.div
                       animate={{ rotate: isOpen ? 180 : 0 }}
                       transition={{ duration: 0.2 }}
-                      className="shrink-0 text-slate-400"
+                      className="shrink-0 text-muted"
                     >
                       <ChevronDown className="w-5 h-5" />
                     </motion.div>
@@ -203,7 +203,7 @@ export function FAQPage() {
                         exit={{ height: 0, opacity: 0 }}
                         transition={{ duration: 0.25, ease: 'easeInOut' }}
                       >
-                        <div className="p-4 sm:p-5 pt-0 border-t border-white/5 text-xs sm:text-sm text-slate-300 leading-relaxed">
+                        <div className="p-4 sm:p-5 pt-0 border-t border-border text-xs sm:text-sm text-muted leading-relaxed font-sans">
                           {faq.answer}
                         </div>
                       </motion.div>
@@ -216,12 +216,12 @@ export function FAQPage() {
         </div>
 
         {/* Still Have Questions Banner */}
-        <div className="p-6 rounded-2xl bg-black/60 border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
+        <div className="p-6 rounded-2xl bg-surface/75 backdrop-blur-md border border-border shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
           <div>
-            <h4 className="text-2xl font-bold text-white font-['Teko',sans-serif] tracking-wide">
+            <h4 className="text-xl font-black text-foreground font-mono tracking-wide">
               Still have questions?
             </h4>
-            <p className="text-xs text-slate-300">
+            <p className="text-xs text-muted font-sans mt-0.5">
               Our organizers are available on Discord and email to support you.
             </p>
           </div>
@@ -237,7 +237,7 @@ export function FAQPage() {
       </main>
 
       {/* Footer */}
-      <footer className="relative z-20 w-full py-4 px-6 border-t border-white/10 text-center text-xs text-slate-400 bg-black/40 backdrop-blur-sm">
+      <footer className="relative z-20 w-full py-4 px-6 border-t border-border text-center text-xs text-muted bg-surface/75 backdrop-blur-md font-mono">
         © 2026 GS Arena. All Rights Reserved. Help & Knowledge Base.
       </footer>
     </div>

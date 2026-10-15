@@ -40,7 +40,7 @@ import {
   sendRegistrationApproved,
   sendRegistrationRejected,
 } from '../lib/email';
-import { fireConfetti } from '../components/ui/Confetti';
+import { TagChip } from '../components/ui/TagChip';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
@@ -52,6 +52,10 @@ import type { Registration, Game } from '../types';
 type QueueStatusFilter = 'pending' | 'approved' | 'rejected' | 'all';
 type QueueSubTab = 'BGMI_BR' | 'FF_BR' | 'FF_CS';
 
+/**
+ * Broadcast-grade squad verification and approval queue.
+ * Provides roster auditing, UTR verification, batch actions, and Firestore provisioning.
+ */
 export function ApprovalQueuePage() {
   const { user, isAdmin } = useAuth();
   const { isCreatorUnlocked } = useCreator();
@@ -373,10 +377,6 @@ export function ApprovalQueuePage() {
       setSuccessMsg(okMsg);
       setCardSuccess((prev) => ({ ...prev, [reg.id]: okMsg }));
 
-      // Fire confetti
-      if (typeof fireConfetti === 'function') {
-        fireConfetti();
-      }
 
       // Clear success message after 4 seconds
       setTimeout(() => {
@@ -992,19 +992,13 @@ export function ApprovalQueuePage() {
                   {/* Status Badge */}
                   <div className="shrink-0 flex sm:flex-col items-center sm:items-end justify-between gap-2">
                     {reg.status === 'approved' ? (
-                      <span className="text-xs font-bold px-3 py-1 rounded-full uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 tracking-wider">
-                        APPROVED
-                      </span>
+                      <TagChip label="APPROVED" variant="success" size="md" />
                     ) : reg.status === 'rejected' ? (
-                      <span className="text-xs font-bold px-3 py-1 rounded-full uppercase bg-rose-500/20 text-rose-300 border border-rose-500/30 tracking-wider">
-                        REJECTED
-                      </span>
+                      <TagChip label="REJECTED" variant="danger" size="md" />
                     ) : (
-                      <span className="text-xs font-bold px-3 py-1 rounded-full uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30 tracking-wider">
-                        PENDING APPROVAL
-                      </span>
+                      <TagChip label="PENDING APPROVAL" variant="warn" size="md" />
                     )}
-                    <span className="text-xs text-slate-400 flex items-center gap-1 font-mono">
+                    <span className="text-[11px] text-muted flex items-center gap-1 font-mono">
                       <Clock className="w-3 h-3" />
                       Submitted: {getRelativeTime(reg.submittedAt)}
                     </span>

@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { CSBracket } from '../components/cs/CSBracket';
 import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/EmptyState';
+import { TagChip } from '../components/ui/TagChip';
 import { createSeed, generateBracket } from '../lib/cs/randomMatchmaking';
 import { updateTournament, createMatch } from '../lib/firestore';
 import type { Game } from '../types';
@@ -16,6 +17,10 @@ export interface CSBracketPageProps {
   propGame?: Game;
 }
 
+/**
+ * Broadcast-grade Clash Squad championship bracket tree.
+ * Renders single-elimination tournament nodes with reproducible seeding and zoom controls.
+ */
 export function CSBracketPage({ propGame }: CSBracketPageProps = {}) {
   const context = useOutletContext<LayoutContextType | null>();
   const { activeTournament } = useTournament();
@@ -82,40 +87,22 @@ export function CSBracketPage({ propGame }: CSBracketPageProps = {}) {
 
   return (
     <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-2xl p-5 border border-white/10 bg-black/40">
-        <div className="absolute inset-0 pointer-events-none">
-          <img
-            src="/freefire-icon.png"
-            alt=""
-            role="presentation"
-            className="w-full h-full object-cover opacity-20"
-            onError={(e) => {
-              (e.target as HTMLElement).style.display = 'none';
-            }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-red-950/80 via-black/90 to-[#03040a]" />
-        </div>
-
+      <div className="relative overflow-hidden rounded-2xl p-6 border border-border bg-surface/75 backdrop-blur-md">
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs uppercase font-extrabold tracking-widest px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">
-                {game} Clash Squad
-              </span>
+            <div className="flex items-center gap-2 mb-1.5">
+              <TagChip label={`${game} Clash Squad`} variant="accent" size="sm" />
               {isLocked ? (
-                <span className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  <Lock className="w-3 h-3" />
-                  Locked
-                </span>
+                <TagChip label="LOCKED" variant="warn" size="sm" />
               ) : (
-                <span className="text-xs text-gray-400">Open Bracket</span>
+                <TagChip label="OPEN BRACKET" variant="cyan" size="sm" />
               )}
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-3 font-['Teko',sans-serif] text-4xl">
+            <h1 className="text-3xl sm:text-4xl font-black text-foreground tracking-tight flex items-center gap-3 font-mono">
               <Swords className="w-8 h-8 text-rose-500" />
               Tournament Bracket Tree
             </h1>
-            <p className="text-sm text-gray-400 mt-1">
+            <p className="text-sm text-muted mt-1 font-sans">
               Single-elimination Clash Squad championship bracket generated with reproducible 32-character seed.
             </p>
           </div>
@@ -133,8 +120,8 @@ export function CSBracketPage({ propGame }: CSBracketPageProps = {}) {
                   <span>{isGenerating ? 'Generating Seed...' : 'Generate Bracket'}</span>
                 </Button>
               ) : (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-gray-300 font-mono">
-                  <Key className="w-3.5 h-3.5 text-amber-400" />
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface border border-border text-xs text-muted font-mono">
+                  <Key className="w-3.5 h-3.5 text-warn" />
                   <span>Seed: {seed ? seed.slice(0, 8) + '...' : 'Locked'}</span>
                 </div>
               )}

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Lock, ZoomIn, ZoomOut, RotateCcw, Shield, Swords, CheckCircle2, Clock } from 'lucide-react';
+import { TagChip } from '../ui/TagChip';
+import { LiveBadge } from '../ui/LiveBadge';
 import type { Match, Team } from '../../types';
 import { cn } from '../../lib/cn';
 
@@ -11,6 +13,10 @@ export interface CSBracketProps {
   bracketLocked?: boolean;
 }
 
+/**
+ * Interactive tournament knockout bracket visualizer.
+ * Supports fluid pan/zoom, winner highlight paths, and match status tags.
+ */
 export function CSBracket({
   matches,
   teams,
@@ -51,26 +57,11 @@ export function CSBracket({
   const renderStatusBadge = (status: Match['status']) => {
     switch (status) {
       case 'live':
-        return (
-          <span className="inline-flex items-center gap-1 text-xs font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-            Live
-          </span>
-        );
+        return <LiveBadge label="LIVE" />;
       case 'done':
-        return (
-          <span className="inline-flex items-center gap-1 text-xs font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-            <CheckCircle2 className="w-3 h-3" />
-            Done
-          </span>
-        );
+        return <TagChip label="DONE" variant="success" size="sm" />;
       default:
-        return (
-          <span className="inline-flex items-center gap-1 text-xs font-medium uppercase px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
-            <Clock className="w-3 h-3" />
-            Scheduled
-          </span>
-        );
+        return <TagChip label="SCHEDULED" variant="cyan" size="sm" />;
     }
   };
 
@@ -84,8 +75,8 @@ export function CSBracket({
         className={cn(
           'flex items-center justify-between p-2 rounded-lg border transition-all text-xs',
           isWinner
-            ? 'bg-gradient-to-r from-orange-500/20 to-amber-500/10 border-orange-500/50 text-white font-bold'
-            : 'bg-white/5 border-white/10 text-gray-300'
+            ? 'bg-accent/15 border-accent/60 text-foreground font-bold shadow-sm'
+            : 'bg-surface border-border text-muted'
         )}
       >
         <div className="flex items-center gap-2 min-w-0">
@@ -93,22 +84,22 @@ export function CSBracket({
             <img
               src={team.logoUrl}
               alt={displayName}
-              className="w-5 h-5 rounded-md object-cover border border-white/20 shrink-0"
+              className="w-5 h-5 rounded-md object-cover border border-border shrink-0"
             />
           ) : (
-            <div className="w-5 h-5 rounded-md bg-white/10 flex items-center justify-center shrink-0 text-xs text-gray-400 font-bold">
+            <div className="w-5 h-5 rounded-md bg-surface-2 flex items-center justify-center shrink-0 text-xs text-muted font-bold font-mono">
               {displayName.slice(0, 2).toUpperCase()}
             </div>
           )}
           <div className="truncate">
-            <span className="truncate">{displayName}</span>
-            {tag && <span className="ml-1 text-xs text-slate-400 font-mono">[{tag}]</span>}
+            <span className="truncate font-mono">{displayName}</span>
+            {tag && <span className="ml-1 text-[11px] text-muted font-mono">[{tag}]</span>}
           </div>
         </div>
         <span
           className={cn(
             'px-2 py-0.5 rounded text-xs font-mono font-bold shrink-0',
-            isWinner ? 'bg-orange-500 text-black' : 'bg-black/40 text-gray-400'
+            isWinner ? 'bg-accent text-white shadow-sm' : 'bg-surface-2 text-muted'
           )}
         >
           {wins}
@@ -118,24 +109,21 @@ export function CSBracket({
   };
 
   return (
-    <div className="relative w-full overflow-hidden rounded-2xl glass-card border border-white/10 p-4 sm:p-6">
+    <div className="relative w-full overflow-hidden rounded-2xl border border-border bg-surface/75 backdrop-blur-md p-4 sm:p-6 shadow-xl">
       {/* Top Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 mb-4 border-b border-white/10">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 mb-4 border-b border-border">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-red-500/20 border border-red-500/30 flex items-center justify-center text-red-400">
+          <div className="w-8 h-8 rounded-lg bg-accent/20 border border-accent/40 flex items-center justify-center text-accent">
             <Swords className="w-4 h-4" />
           </div>
           <div>
-            <h4 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+            <h4 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2 font-mono">
               Clash Squad Bracket
               {bracketLocked && (
-                <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/40">
-                  <Lock className="w-3 h-3" />
-                  Locked
-                </span>
+                <TagChip label="LOCKED" variant="warn" size="sm" />
               )}
             </h4>
-            <p className="text-xs text-slate-400">Best of 7 rounds (first to 4 wins)</p>
+            <p className="text-xs text-muted font-sans">Best of 7 rounds (first to 4 wins)</p>
           </div>
         </div>
 

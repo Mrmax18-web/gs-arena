@@ -9,9 +9,15 @@ import { computeWinner, CS_DEFAULT_WIN_THRESHOLD, CS_DEFAULT_ROUNDS } from '../l
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { EmptyState } from '../components/EmptyState';
+import { TagChip } from '../components/ui/TagChip';
+import { LiveBadge } from '../components/ui/LiveBadge';
 import type { Match, Team } from '../types';
 import { cn } from '../lib/cn';
 
+/**
+ * Broadcast-grade Clash Squad round tally and match scoring desk.
+ * Records individual round allocations, threshold triggers, and victor statuses.
+ */
 export function CSMatchResultsPage() {
   const { game } = useOutletContext<LayoutContextType>();
   const { activeTournament } = useTournament();
@@ -149,10 +155,10 @@ export function CSMatchResultsPage() {
                     type="button"
                     onClick={() => setSelectedMatchId(m.id)}
                     className={cn(
-                      'flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer',
+                      'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-mono font-semibold border transition-all cursor-pointer',
                       isSelected
-                        ? 'bg-gradient-to-r from-orange-500/20 to-amber-500/20 text-white border-orange-500 shadow-md shadow-orange-500/10'
-                        : 'glass text-gray-300 hover:text-white hover:bg-white/10'
+                        ? 'bg-accent/20 text-foreground border-accent shadow-md shadow-accent/10'
+                        : 'bg-surface text-muted hover:text-foreground hover:bg-surface-2 border-border'
                     )}
                   >
                     <span>
@@ -160,12 +166,12 @@ export function CSMatchResultsPage() {
                     </span>
                     <span
                       className={cn(
-                        'text-[10px] px-1.5 py-0.2 rounded font-mono',
+                        'text-[10px] px-1.5 py-0.5 rounded font-mono',
                         m.status === 'done'
-                          ? 'bg-emerald-500/20 text-emerald-300'
+                          ? 'bg-success/20 text-success'
                           : m.status === 'live'
-                          ? 'bg-amber-500/20 text-amber-300 animate-pulse'
-                          : 'bg-white/10 text-gray-400'
+                          ? 'bg-danger/20 text-danger animate-pulse'
+                          : 'bg-surface-2 text-muted'
                       )}
                     >
                       {m.teamARoundWins || 0}-{m.teamBRoundWins || 0}
@@ -177,7 +183,7 @@ export function CSMatchResultsPage() {
           </div>
 
           {activeMatch && (
-            <Card className="relative overflow-hidden p-6 sm:p-8 border border-white/15">
+            <Card className="relative overflow-hidden p-6 sm:p-8 border border-border bg-surface/75 backdrop-blur-md rounded-2xl shadow-xl">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
                 {/* Team A Side */}
                 <div

@@ -18,10 +18,15 @@ import { Card } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
 import { Select } from '../components/ui/Select';
 import { EmptyState } from '../components/EmptyState';
+import { TagChip } from '../components/ui/TagChip';
 import { cn } from '../lib/cn';
 import type { Team } from '../types';
 import type { ByeStrategy } from '../lib/cs/byeStrategy';
 
+/**
+ * Broadcast-grade Clash Squad group stage distribution console.
+ * Handles balanced snake drafting, odd-team bye strategies, and group stage assignment.
+ */
 export function CSGroupManagerPage() {
   const { game } = useOutletContext<LayoutContextType>();
   const { activeTournament } = useTournament();

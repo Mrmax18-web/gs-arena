@@ -25,6 +25,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/EmptyState';
+import { TagChip } from '../components/ui/TagChip';
 import { cn } from '../lib/cn';
 
 interface AuditEntry {
@@ -36,6 +37,10 @@ interface AuditEntry {
   timestamp: string;
 }
 
+/**
+ * Broadcast-grade security audit trail and activity log.
+ * Tracks squad verification, rejections, deletes, and configuration adjustments.
+ */
 export function ActivityLogPage() {
   const [logs, setLogs] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -117,33 +122,21 @@ export function ActivityLogPage() {
     const act = action.toLowerCase();
     if (act.includes('approve')) {
       return (
-        <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-          <CheckCircle2 className="w-3 h-3" />
-          {action}
-        </span>
+        <TagChip label={action.toUpperCase()} variant="success" size="sm" />
       );
     }
     if (act.includes('reject')) {
       return (
-        <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
-          <XCircle className="w-3 h-3" />
-          {action}
-        </span>
+        <TagChip label={action.toUpperCase()} variant="danger" size="sm" />
       );
     }
     if (act.includes('delete')) {
       return (
-        <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/30">
-          <Trash2 className="w-3 h-3" />
-          {action}
-        </span>
+        <TagChip label={action.toUpperCase()} variant="danger" size="sm" />
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
-        <ShieldCheck className="w-3 h-3" />
-        {action}
-      </span>
+      <TagChip label={action.toUpperCase()} variant="cyan" size="sm" />
     );
   };
 
@@ -172,28 +165,28 @@ export function ActivityLogPage() {
       />
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-2xl bg-black/40 border border-white/10">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-2xl bg-surface/70 backdrop-blur-md border border-border">
         <div className="relative flex-1 w-full sm:max-w-md">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Search className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             placeholder="Search activity by team, admin, or target ID..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full text-xs pl-9 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-400 outline-none focus:border-orange-500 focus:bg-white/[0.08]"
+            className="w-full text-xs pl-9 pr-4 py-2.5 rounded-xl bg-surface border border-border text-foreground placeholder-muted outline-none focus:border-accent transition-colors"
           />
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto">
-          <span className="text-xs font-semibold text-slate-400 shrink-0">Filter Action:</span>
+          <span className="text-xs font-semibold text-muted shrink-0 font-mono">FILTER:</span>
           <select
             value={actionFilter}
             onChange={(e) => setActionFilter(e.target.value)}
-            className="text-xs bg-white/5 text-white border border-white/10 rounded-xl px-3 py-2 outline-none cursor-pointer hover:border-orange-500/50"
+            className="text-xs bg-surface text-foreground border border-border rounded-xl px-3 py-2 outline-none cursor-pointer hover:border-accent/50 font-mono transition-colors"
           >
-            <option value="all" className="bg-slate-900 text-white">All Events ({logs.length})</option>
+            <option value="all" className="bg-surface text-foreground">All Events ({logs.length})</option>
             {uniqueActions.map((act) => (
-              <option key={act} value={act} className="bg-slate-900 text-white">
+              <option key={act} value={act} className="bg-surface text-foreground">
                 {act}
               </option>
             ))}
@@ -203,20 +196,20 @@ export function ActivityLogPage() {
 
       {/* Activity Table */}
       {loading && logs.length === 0 ? (
-        <div className="p-12 text-center text-slate-400 text-xs animate-pulse">
+        <div className="p-12 text-center text-muted text-xs animate-pulse font-mono">
           Loading audit trail records from Firestore...
         </div>
       ) : filteredLogs.length === 0 ? (
         <EmptyState
-          icon={<History className="w-8 h-8 text-slate-400" />}
+          icon={<History className="w-8 h-8 text-muted" />}
           title="No Activity Entries Found"
           description="There are currently no recorded audit logs matching the active filter criteria."
         />
       ) : (
-        <Card className="p-0 border border-white/10 bg-black/40 overflow-hidden">
+        <Card className="p-0 border border-border bg-surface/75 backdrop-blur-md overflow-hidden rounded-2xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-white/5 border-b border-white/10 text-slate-300 uppercase font-mono text-xs">
+              <thead className="bg-surface-2 border-b border-border text-muted uppercase font-mono text-xs">
                 <tr>
                   <th className="py-3 px-4">Timestamp</th>
                   <th className="py-3 px-4">Admin / Issuer</th>

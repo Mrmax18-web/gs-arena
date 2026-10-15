@@ -35,6 +35,10 @@ interface SystemHealthReport {
   warnings: string[];
 }
 
+/**
+ * System diagnostic health check page verifying Firebase connection,
+ * Firestore read/write capabilities, auth status, and database telemetry.
+ */
 export function HealthCheckPage() {
   const { user, isAdmin } = useAuth();
   const [report, setReport] = useState<SystemHealthReport>({

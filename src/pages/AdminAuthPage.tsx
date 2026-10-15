@@ -12,10 +12,14 @@ import {
   Trophy,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { CosmicBackground } from '../components/CosmicBackground';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { TagChip } from '../components/ui/TagChip';
 
+/**
+ * Broadcast-grade administrator authentication portal.
+ * Validates approved administrator credentials with domain validation fallback.
+ */
 export function AdminAuthPage() {
   const navigate = useNavigate();
   const { signInWithAdminEmail, signInWithGoogleOAuth } = useAuth();
@@ -25,7 +29,7 @@ export function AdminAuthPage() {
   const [copiedDomain, setCopiedDomain] = useState(false);
 
   const formatAuthError = (err: unknown): string => {
-    const errorObj = err as any;
+    const errorObj = err as { code?: string; message?: string } | null;
     if (
       errorObj?.code === 'auth/unauthorized-domain' ||
       (typeof errorObj?.message === 'string' && errorObj.message.includes('auth/unauthorized-domain'))
@@ -90,25 +94,23 @@ export function AdminAuthPage() {
   const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
 
   return (
-    <div className="relative min-h-screen bg-[#03040a] text-white flex flex-col items-center justify-center p-4">
-      <CosmicBackground />
-
+    <div className="relative min-h-screen text-foreground flex flex-col items-center justify-center p-4">
       {/* Top Bar back button */}
       <div className="absolute top-6 left-6 z-20">
         <Link
           to="/"
-          className="text-xs text-slate-300 hover:text-white flex items-center gap-1.5 transition-colors font-medium bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg border border-white/10"
+          className="text-xs text-muted hover:text-foreground flex items-center gap-1.5 transition-colors font-mono bg-surface hover:bg-surface-2 px-3 py-1.5 rounded-lg border border-border"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Back to Arena</span>
         </Link>
       </div>
 
-      <Card className="relative z-10 w-full max-w-md p-6 sm:p-8 border border-white/15 bg-black/75 shadow-2xl backdrop-blur-xl space-y-6">
+      <Card className="relative z-10 w-full max-w-md p-6 sm:p-8 border border-border bg-surface/80 shadow-2xl backdrop-blur-xl rounded-3xl space-y-6">
         {/* Header */}
         <div className="text-center space-y-2">
           <div className="relative w-14 h-14 mx-auto">
-            <div className="absolute inset-0 bg-gradient-to-br from-red-500 via-orange-500 to-amber-500 rounded-2xl blur-md opacity-60" />
+            <div className="absolute inset-0 bg-gradient-to-br from-accent to-accent-orange rounded-2xl blur-md opacity-60" />
             <img
               src="/gs-arena-logo.png"
               alt="GS Arena"
@@ -117,18 +119,16 @@ export function AdminAuthPage() {
                 const fb = (e.target as HTMLElement).parentElement?.querySelector('.admin-logo-fb') as HTMLElement;
                 if (fb) fb.style.display = 'flex';
               }}
-              className="relative w-14 h-14 rounded-2xl object-contain bg-black/60 p-1 border border-orange-500/30"
+              className="relative w-14 h-14 rounded-2xl object-contain bg-surface p-1 border border-border"
             />
-            <div className="admin-logo-fb hidden w-14 h-14 rounded-2xl bg-gradient-to-tr from-red-600 to-orange-500 items-center justify-center text-white font-black text-sm">
+            <div className="admin-logo-fb hidden w-14 h-14 rounded-2xl bg-gradient-to-tr from-accent to-accent-orange items-center justify-center text-white font-black text-sm">
               GS
             </div>
           </div>
-          <h1 className="text-3xl font-extrabold text-white font-['Teko',sans-serif] tracking-wider leading-none">
+          <h1 className="text-2xl font-black text-foreground font-mono tracking-wider leading-none">
             ADMINISTRATOR SIGN IN
           </h1>
-          <p className="text-xs text-amber-400 font-mono">
-            GS Arena Operations Console
-          </p>
+          <TagChip label="GS ARENA OPERATIONS DESK" variant="warn" size="sm" />
         </div>
 
         {/* Security Notice */}

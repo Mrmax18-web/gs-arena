@@ -10,13 +10,17 @@ import {
   MessageSquare,
   Sparkles,
 } from 'lucide-react';
-import { CosmicBackground } from '../components/CosmicBackground';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { TagChip } from '../components/ui/TagChip';
 import { useAdminRequests } from '../hooks/useAdminRequests';
 import { useToast } from '../context/ToastContext';
 
+/**
+ * Administrator privilege application console.
+ * Routes prospective arbiter applications to the master creator for credential provisioning.
+ */
 export function RequestAdminPage() {
   const { submitRequest } = useAdminRequests();
   const { showToast } = useToast();
@@ -77,37 +81,35 @@ export function RequestAdminPage() {
   };
 
   return (
-    <div className="relative min-h-screen bg-[#03040a] text-white flex flex-col justify-between py-12 px-4 sm:px-6">
-      <CosmicBackground />
-
+    <div className="relative min-h-screen text-foreground flex flex-col justify-between py-12 px-4 sm:px-6">
       <div className="relative z-10 max-w-lg w-full mx-auto space-y-6">
         {/* Navigation back */}
         <div className="flex items-center justify-between">
           <Link
             to="/"
-            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+            className="inline-flex items-center gap-2 text-xs font-mono font-semibold text-muted hover:text-foreground transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Return to Arena</span>
           </Link>
           <Link
             to="/contact"
-            className="text-xs text-orange-400 hover:text-orange-300 font-semibold"
+            className="text-xs text-accent hover:text-accent-orange font-mono font-semibold"
           >
             Contact & Support
           </Link>
         </div>
 
-        <Card className="p-6 sm:p-8 space-y-6 border border-amber-500/20 bg-[#090b14]/90 backdrop-blur-xl shadow-2xl">
+        <Card className="p-6 sm:p-8 space-y-6 border border-border bg-surface/80 backdrop-blur-xl shadow-2xl rounded-3xl">
           {/* Header */}
           <div className="text-center space-y-2">
-            <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
+            <div className="w-14 h-14 rounded-2xl bg-accent/15 border border-accent/30 flex items-center justify-center mx-auto text-accent">
               <ShieldAlert className="w-7 h-7" />
             </div>
-            <h1 className="text-2xl font-black uppercase tracking-wider text-white">
+            <h1 className="text-2xl font-black font-mono uppercase tracking-wider text-foreground">
               Request Admin Access
             </h1>
-            <p className="text-xs text-slate-300 max-w-sm mx-auto">
+            <p className="text-xs text-muted max-w-sm mx-auto font-sans">
               Apply for administrative credentials to manage teams, verify registrations, and record live match results.
             </p>
           </div>

@@ -24,6 +24,10 @@ import { formatDeadlineDateTime, isRegistrationExpired } from '../lib/deadline';
 import { useCountdown } from '../hooks/useCountdown';
 import type { LayoutContextType } from '../components/layout/Layout';
 
+/**
+ * Admin tournament configuration page for managing deadlines, UPI payment settings,
+ * tournament rules, and scoring parameters.
+ */
 export function AdminSettingsPage() {
   const context = useOutletContext<LayoutContextType>();
   const game = context?.game || 'BGMI';
