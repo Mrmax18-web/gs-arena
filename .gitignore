@@ -9,3 +9,6 @@ build/
 .DS_Store
 *.log
 bun.lock
+.env
+.env.local
+.env.*.local
