@@ -33,10 +33,34 @@ import { Button } from '../components/ui/Button';
 import { exportToCSV, exportToExcel } from '../lib/exportUtils';
 import { getWinTerm } from '../lib/games';
 import { cn } from '../lib/cn';
-import type { Team, Game, Member } from '../types';
+import type { Team, Game, Member, Match } from '../types';
+
+interface MatchScore {
+  teamId: string;
+  placement?: number;
+  kills?: number;
+  placementPoints?: number;
+}
+
+interface LeaderboardMatch extends Match {
+  scores?: MatchScore[];
+}
+
+interface TeamMemberWithStats extends Member {
+  role?: 'IGL' | 'Assaulter' | 'Sniper' | 'Support';
+  kills?: number;
+  damage?: number;
+  survivalSeconds?: number;
+}
+
+interface LeaderboardTeam extends Team {
+  status?: string;
+  members?: TeamMemberWithStats[];
+  matchesPlayed?: number;
+}
 
 interface TeamScoreRow {
-  team: Team;
+  team: LeaderboardTeam;
   matchesPlayed: number;
   wwcds: number;
   killPoints: number;
@@ -86,10 +110,10 @@ export function LeaderboardPage({ propGame }: LeaderboardPageProps = {}) {
   const { user, isAdmin, signIn } = useAuth();
   const win = getWinTerm(game);
 
-  // Synchronize active tournament with selected mode when playing Free Fire
+    // Synchronize active tournament with selected mode when playing Free Fire
   useEffect(() => {
     if (game === 'Free Fire' && activeTournament && activeTournament.mode !== currentMode) {
-      const matchTourney = tournaments.find((t) => t.game === 'Free Fire' && t.mode === currentMode);
+      const matchTourney = (tournaments ?? []).find((t) => t.game === 'Free Fire' && t.mode === currentMode);
       if (matchTourney) {
         setActiveTournament(matchTourney);
       } else {
@@ -108,8 +132,11 @@ export function LeaderboardPage({ propGame }: LeaderboardPageProps = {}) {
     }
   }, [game, currentMode, activeTournament, tournaments, setActiveTournament]);
 
-  const { teams, loading: teamsLoading } = useTeams(activeTournament?.id);
-  const { matches, loading: matchesLoading } = useMatches(activeTournament?.id);
+  const { data: rawTeams, teams = rawTeams ?? [], loading: teamsLoading } = useTeams(activeTournament?.id);
+  const { data: rawMatches, matches = rawMatches ?? [], loading: matchesLoading } = useMatches(activeTournament?.id);
+
+  const typedTeams = (teams as unknown as LeaderboardTeam[]) ?? [];
+  const typedMatches = (matches as unknown as LeaderboardMatch[]) ?? [];
 
   const [activeViewTab, setActiveViewTab] = useState<string>('standings');
   const [playerSearchQuery, setPlayerSearchQuery] = useState('');
@@ -119,8 +146,10 @@ export function LeaderboardPage({ propGame }: LeaderboardPageProps = {}) {
 
   // Live match detection
   const isMatchLive = useMemo(() => {
-    return matches.some((m) => m.status === 'Ongoing' || m.status === 'Live');
-  }, [matches]);
+    return typedMatches.some(
+      (m) => m.status === 'live' || (m.status as string) === 'Ongoing' || (m.status as string) === 'Live'
+    );
+  }, [typedMatches]);
 
   // Countdown timer state (simulated next round countdown)
   const [countdown, setCountdown] = useState({ minutes: 14, seconds: 32 });
@@ -137,28 +166,30 @@ export function LeaderboardPage({ propGame }: LeaderboardPageProps = {}) {
 
   // Filter active teams
   const activeTeams = useMemo(() => {
-    return teams.filter((t) => t.status === 'Approved' && !t.disqualified);
-  }, [teams]);
+    return typedTeams.filter(
+      (t) => (t.status === undefined || t.status === 'Approved') && !t.disqualified
+    );
+  }, [typedTeams]);
 
   // Compute standings table
   const standings = useMemo((): TeamScoreRow[] => {
-    return activeTeams
+    return (activeTeams ?? [])
       .map((team, idx) => {
-        const teamMatches = matches.filter((m) =>
-          m.scores.some((s) => s.teamId === team.id)
+        const teamMatches = typedMatches.filter((m) =>
+          (m.scores ?? []).some((s) => s.teamId === team.id)
         );
         const wwcds = teamMatches.filter((m) => {
-          const s = m.scores.find((sc) => sc.teamId === team.id);
+          const s = (m.scores ?? []).find((sc) => sc.teamId === team.id);
           return s && s.placement === 1;
         }).length;
 
         const killPoints = teamMatches.reduce((acc, m) => {
-          const s = m.scores.find((sc) => sc.teamId === team.id);
+          const s = (m.scores ?? []).find((sc) => sc.teamId === team.id);
           return acc + (s?.kills || 0);
         }, 0);
 
         const placementPoints = teamMatches.reduce((acc, m) => {
-          const s = m.scores.find((sc) => sc.teamId === team.id);
+          const s = (m.scores ?? []).find((sc) => sc.teamId === team.id);
           return acc + (s?.placementPoints || 0);
         }, 0);
 
@@ -183,10 +214,10 @@ export function LeaderboardPage({ propGame }: LeaderboardPageProps = {}) {
         if (b.killPoints !== a.killPoints) return b.killPoints - a.killPoints;
         return b.wwcds - a.wwcds;
       });
-  }, [activeTeams, matches]);
+  }, [activeTeams, typedMatches]);
 
   const top3: PodiumTeam[] = useMemo(() => {
-    return standings.slice(0, 3).map((row) => ({
+    return (standings ?? []).slice(0, 3).map((row) => ({
       id: row.team.id,
       name: row.team.teamName,
       logoUrl: row.team.logoUrl,
@@ -199,9 +230,9 @@ export function LeaderboardPage({ propGame }: LeaderboardPageProps = {}) {
   // Aggregated player MVP list
   const playersList = useMemo((): PlayerMVP[] => {
     const list: PlayerMVP[] = [];
-    activeTeams.forEach((t) => {
+    (activeTeams ?? []).forEach((t) => {
       if (t.members) {
-        t.members.forEach((m) => {
+        (t.members ?? []).forEach((m) => {
           const kills = m.kills || 0;
           const damage = m.damage || kills * 115;
           const survivalSeconds = m.survivalSeconds || 900;
@@ -213,9 +244,9 @@ export function LeaderboardPage({ propGame }: LeaderboardPageProps = {}) {
 
           list.push({
             id: m.id,
-            gameUid: m.gameUid,
-            ign: m.ign,
-            displayName: m.displayName || m.ign,
+            gameUid: m.gameUid || '',
+            ign: m.ign || m.displayName || 'Player',
+            displayName: m.displayName || m.ign || 'Player',
             teamId: t.id,
             teamName: t.teamName,
             teamTag: t.teamTag,
@@ -233,7 +264,7 @@ export function LeaderboardPage({ propGame }: LeaderboardPageProps = {}) {
       }
     });
 
-    return list.sort((a, b) => {
+    return [...list].sort((a, b) => {
       if (mvpSortBy === 'kills') return b.kills - a.kills;
       if (mvpSortBy === 'survival') return b.survivalSeconds - a.survivalSeconds;
       return b.mvpScore - a.mvpScore;
@@ -241,9 +272,9 @@ export function LeaderboardPage({ propGame }: LeaderboardPageProps = {}) {
   }, [activeTeams, mvpSortBy]);
 
   const filteredPlayers = useMemo(() => {
-    if (!playerSearchQuery.trim()) return playersList;
+    if (!playerSearchQuery.trim()) return playersList ?? [];
     const q = playerSearchQuery.toLowerCase();
-    return playersList.filter(
+    return (playersList ?? []).filter(
       (p) =>
         p.ign.toLowerCase().includes(q) ||
         p.teamName.toLowerCase().includes(q) ||
@@ -251,14 +282,14 @@ export function LeaderboardPage({ propGame }: LeaderboardPageProps = {}) {
     );
   }, [playersList, playerSearchQuery]);
 
-  const activeSquads = activeTeams.length;
-  const totalKills = standings.reduce((acc, row) => acc + row.killPoints, 0);
-  const matchesDone = matches.filter((m) => m.status === 'Completed').length;
-  const visibleStandings = showAll ? standings : standings.slice(0, 20);
+  const activeSquads = (activeTeams ?? []).length;
+  const totalKills = (standings ?? []).reduce((acc, row) => acc + (row.killPoints || 0), 0);
+  const matchesDone = typedMatches.filter((m) => m.status === 'done' || (m.status as string) === 'Completed').length;
+  const visibleStandings = showAll ? (standings ?? []) : (standings ?? []).slice(0, 20);
 
   const handleExportCsv = () => {
     if (activeViewTab === 'standings') {
-      const csvData = standings.map((s, idx) => ({
+      const csvData = (standings ?? []).map((s, idx) => ({
         Rank: idx + 1,
         Squad: s.team.teamName,
         Tag: s.team.teamTag || '',
@@ -270,7 +301,7 @@ export function LeaderboardPage({ propGame }: LeaderboardPageProps = {}) {
       }));
       exportToCSV(csvData, `${game.toLowerCase()}-standings`);
     } else {
-      const csvData = filteredPlayers.map((p, idx) => ({
+      const csvData = (filteredPlayers ?? []).map((p, idx) => ({
         Rank: idx + 1,
         IGN: p.ign,
         Squad: p.teamName,
@@ -285,7 +316,7 @@ export function LeaderboardPage({ propGame }: LeaderboardPageProps = {}) {
   };
 
   const handleExportExcel = () => {
-    const data = standings.map((s, idx) => ({
+    const data = (standings ?? []).map((s, idx) => ({
       Rank: idx + 1,
       Squad: s.team.teamName,
       Matches: s.matchesPlayed,
@@ -298,8 +329,8 @@ export function LeaderboardPage({ propGame }: LeaderboardPageProps = {}) {
   };
 
   const viewTabs: TabItem[] = [
-    { id: 'standings', label: 'Squad Standings', badge: standings.length },
-    { id: 'mvp', label: 'Player MVP Spotlight', badge: playersList.length },
+    { id: 'standings', label: 'Squad Standings', badge: (standings ?? []).length },
+    { id: 'mvp', label: 'Player MVP Spotlight', badge: (playersList ?? []).length },
   ];
 
   return (
@@ -374,7 +405,7 @@ export function LeaderboardPage({ propGame }: LeaderboardPageProps = {}) {
         />
         <StatCard
           label="TRACKED PLAYERS"
-          value={playersList.length}
+          value={(playersList ?? []).length}
           delta={{ value: 'Full Roster', type: 'neutral' }}
           loading={teamsLoading}
         />
@@ -431,7 +462,7 @@ export function LeaderboardPage({ propGame }: LeaderboardPageProps = {}) {
       {activeViewTab === 'standings' && (
         <div className="space-y-6">
           {/* Metallic 3D Podium */}
-          {activeTeams.length >= 1 ? <Podium teams={top3} /> : <EmptyPodium />}
+          {(activeTeams ?? []).length >= 1 ? <Podium teams={top3} /> : <EmptyPodium />}
 
           {/* Live Scoreboard Table */}
           <div className="overflow-hidden rounded-[18px] border border-border bg-surface/75 backdrop-blur-xl shadow-xl">
@@ -451,7 +482,28 @@ export function LeaderboardPage({ propGame }: LeaderboardPageProps = {}) {
                 </thead>
 
                 <tbody className="divide-y divide-border/40 font-mono text-sm">
-                  {visibleStandings.map((row, idx) => {
+                  {teamsLoading && (visibleStandings ?? []).length === 0 ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <tr key={`loading-${i}`} className="animate-pulse">
+                        <td className="py-4 px-4 text-center text-muted">--</td>
+                        <td className="py-4 px-4">
+                          <div className="h-4 w-32 bg-surface-2 rounded" />
+                        </td>
+                        <td className="py-4 px-4 text-center text-muted">--</td>
+                        <td className="py-4 px-4 text-center text-muted">--</td>
+                        <td className="py-4 px-4 text-center text-muted">--</td>
+                        <td className="py-4 px-4 text-center text-muted">--</td>
+                        <td className="py-4 px-5 text-right text-muted">--</td>
+                      </tr>
+                    ))
+                  ) : (visibleStandings ?? []).length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-muted font-mono text-sm">
+                        No registered squads found. Standings will appear once tournament teams are active.
+                      </td>
+                    </tr>
+                  ) : (
+                    (visibleStandings ?? []).map((row, idx) => {
                     const rank = idx + 1;
                     const isTop1 = rank === 1;
                     const isTop2 = rank === 2;
@@ -585,20 +637,21 @@ export function LeaderboardPage({ propGame }: LeaderboardPageProps = {}) {
                         )}
                       </React.Fragment>
                     );
-                  })}
-                </tbody>
+                  })
+                )}
+              </tbody>
               </table>
             </div>
 
             {/* Show all / Show top 20 Toggle */}
-            {standings.length > 20 && (
+            {(standings ?? []).length > 20 && (
               <div className="p-3 text-center border-t border-border bg-surface-2/30">
                 <button
                   type="button"
                   onClick={() => setShowAll((prev) => !prev)}
                   className="font-mono text-xs font-semibold uppercase tracking-wider text-accent hover:underline inline-flex items-center gap-1"
                 >
-                  <span>{showAll ? 'Show Top 20' : `Show All ${standings.length} Squads`}</span>
+                  <span>{showAll ? 'Show Top 20' : `Show All ${(standings ?? []).length} Squads`}</span>
                   {showAll ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                 </button>
               </div>
@@ -656,31 +709,53 @@ export function LeaderboardPage({ propGame }: LeaderboardPageProps = {}) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40 font-mono text-sm">
-                {filteredPlayers.map((player, idx) => (
-                  <tr key={player.id} className="hover:bg-surface-2/50 transition-colors">
-                    <td className="py-3 px-4 text-center font-bold text-foreground tabular-nums">
-                      {idx + 1}
-                    </td>
-                    <td className="py-3 px-4 font-bold text-foreground">
-                      {player.ign}
-                    </td>
-                    <td className="py-3 px-4 text-muted text-xs">
-                      {player.teamName}
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <TagChip variant="muted">{player.role}</TagChip>
-                    </td>
-                    <td className="py-3 px-4 text-center font-bold text-foreground tabular-nums">
-                      {player.kills}
-                    </td>
-                    <td className="py-3 px-4 text-center text-muted tabular-nums text-xs">
-                      {player.avgSurvivalFormatted}
-                    </td>
-                    <td className="py-3 px-5 text-right font-black text-accent tabular-nums">
-                      {player.mvpScore}
+                {teamsLoading && (filteredPlayers ?? []).length === 0 ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={`mvp-loading-${i}`} className="animate-pulse">
+                      <td className="py-4 px-4 text-center text-muted">--</td>
+                      <td className="py-4 px-4">
+                        <div className="h-4 w-28 bg-surface-2 rounded" />
+                      </td>
+                      <td className="py-4 px-4 text-muted">--</td>
+                      <td className="py-4 px-4 text-center text-muted">--</td>
+                      <td className="py-4 px-4 text-center text-muted">--</td>
+                      <td className="py-4 px-4 text-center text-muted">--</td>
+                      <td className="py-4 px-5 text-right text-muted">--</td>
+                    </tr>
+                  ))
+                ) : (filteredPlayers ?? []).length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-muted font-mono text-sm">
+                      No player telemetry recorded yet.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  (filteredPlayers ?? []).map((player, idx) => (
+                    <tr key={player.id} className="hover:bg-surface-2/50 transition-colors">
+                      <td className="py-3 px-4 text-center font-bold text-foreground tabular-nums">
+                        {idx + 1}
+                      </td>
+                      <td className="py-3 px-4 font-bold text-foreground">
+                        {player.ign}
+                      </td>
+                      <td className="py-3 px-4 text-muted text-xs">
+                        {player.teamName}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <TagChip variant="muted">{player.role}</TagChip>
+                      </td>
+                      <td className="py-3 px-4 text-center font-bold text-foreground tabular-nums">
+                        {player.kills}
+                      </td>
+                      <td className="py-3 px-4 text-center text-muted tabular-nums text-xs">
+                        {player.avgSurvivalFormatted}
+                      </td>
+                      <td className="py-3 px-5 text-right font-black text-accent tabular-nums">
+                        {player.mvpScore}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

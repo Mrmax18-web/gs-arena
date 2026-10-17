@@ -115,9 +115,18 @@ export function useTournament(
 // ==========================================
 // useTeams (NO DEMO DATA - REAL FIRESTORE ONLY)
 // ==========================================
+export interface UseTeamsResult extends UseQueryResult<Team[]> {
+  teams: Team[];
+}
+
+/**
+ * Hook to subscribe to all approved and registered teams for a tournament.
+ * Returns both `data` and `teams` aliases (always guaranteed to be an array)
+ * along with loading and error states.
+ */
 export function useTeams(
   tournamentId: string | undefined
-): UseQueryResult<Team[]> {
+): UseTeamsResult {
   const [data, setData] = useState<Team[]>([]);
   const [loading, setLoading] = useState<boolean>(Boolean(tournamentId));
   const [error, setError] = useState<Error | null>(null);
@@ -137,7 +146,7 @@ export function useTeams(
           id: d.id,
           ...d.data(),
         })) as Team[];
-        setData(items);
+        setData(items ?? []);
         setLoading(false);
       },
       (err) => {
@@ -150,7 +159,8 @@ export function useTeams(
     return () => unsubscribe();
   }, [tournamentId]);
 
-  return { data, loading, error };
+  const safeData = data ?? [];
+  return { data: safeData, teams: safeData, loading, error };
 }
 
 // ==========================================
@@ -205,9 +215,18 @@ export function useMembers(
 // ==========================================
 // useMatches (NO DEMO DATA - REAL FIRESTORE ONLY)
 // ==========================================
+export interface UseMatchesResult extends UseQueryResult<Match[]> {
+  matches: Match[];
+}
+
+/**
+ * Hook to subscribe to all matches for a tournament.
+ * Returns both `data` and `matches` aliases (always guaranteed to be an array)
+ * along with loading and error states.
+ */
 export function useMatches(
   tournamentId: string | undefined
-): UseQueryResult<Match[]> {
+): UseMatchesResult {
   const [data, setData] = useState<Match[]>([]);
   const [loading, setLoading] = useState<boolean>(Boolean(tournamentId));
   const [error, setError] = useState<Error | null>(null);
@@ -227,7 +246,7 @@ export function useMatches(
           id: d.id,
           ...d.data(),
         })) as Match[];
-        setData(items);
+        setData(items ?? []);
         setLoading(false);
       },
       (err) => {
@@ -240,7 +259,8 @@ export function useMatches(
     return () => unsubscribe();
   }, [tournamentId]);
 
-  return { data, loading, error };
+  const safeData = data ?? [];
+  return { data: safeData, matches: safeData, loading, error };
 }
 
 // ==========================================
