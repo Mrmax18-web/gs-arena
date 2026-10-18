@@ -1,101 +1,20 @@
-<!--
-  Tournament Tracker Pro - HTML5 Application Entry Point
-  Includes fallback security meta tags (HSTS, Referrer-Policy, X-Content-Type-Options, X-Frame-Options),
-  OpenGraph/Twitter card descriptors, and Schema.org structured data.
--->
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/gs-arena-logo.png" />
-    <link rel="apple-touch-icon" href="/gs-arena-logo.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    
-    <!-- Security Meta Tags (fallback for headers) -->
-    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
-    <meta http-equiv="X-Frame-Options" content="SAMEORIGIN" />
-    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
-    <meta name="referrer" content="strict-origin-when-cross-origin" />
-
-    <!-- Theme -->
-    <meta name="theme-color" content="#03040a" />
-    
-    <!-- SEO -->
-    <link rel="canonical" href="https://tournament-tracker-pro.ai.studio/" />
-    <title>GS Arena — BGMI & Free Fire Esports</title>
-    <meta name="description" content="GS Arena official competitive esports circuit for BGMI and Free Fire. Live leaderboards, match results, team standings, and player analytics." />
-    <meta name="keywords" content="GS Arena, BGMI, Free Fire, esports, tournament, leaderboard, tournament tracker, standings, clash squad" />
-    
-    <!-- Open Graph / Facebook -->
-    <meta property="og:type" content="website" />
-    <meta property="og:title" content="GS Arena — BGMI & Free Fire Esports" />
-    <meta property="og:description" content="GS Arena official competitive esports circuit for BGMI and Free Fire. Live leaderboards, match results, team standings, and player analytics." />
-    <meta property="og:image" content="/gs-arena-logo.png" />
-    <meta property="og:site_name" content="GS Arena" />
-    
-    <!-- Twitter -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="GS Arena — BGMI & Free Fire Esports" />
-    <meta name="twitter:description" content="GS Arena official competitive esports circuit for BGMI and Free Fire. Live leaderboards, match results, team standings, and player analytics." />
-    <meta name="twitter:image" content="/gs-arena-logo.png" />
-
-    <!-- Schema.org JSON-LD -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebApplication",
-      "name": "GS Arena",
-      "description": "Real-time esports tournament management and live spectator leaderboards for BGMI and Free Fire.",
-      "applicationCategory": "SportsApplication",
-      "operatingSystem": "All",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "INR"
-      }
-    }
-    </script>
-    
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <title>GS Arena</title>
+    <!-- Google Fonts: Teko and Oswald with font-display: swap -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700;800&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Orbitron:wght@700;800;900&family=Rajdhani:wght@500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Teko:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    
-    <!-- Pre-hydration Theme Sync (avoids flash) -->
-    <script>
-      (function() {
-        try {
-          var stored = localStorage.getItem('gs-theme');
-          var systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          if (stored === 'light') {
-            document.documentElement.classList.remove('dark');
-          } else {
-            // Default is dark (Broadcast Noir)
-            document.documentElement.classList.add('dark');
-          }
-        } catch (e) {
-          document.documentElement.classList.add('dark');
-        }
-      })();
-    </script>
   </head>
-  <body>
-    <div id="root">
-      <noscript>
-        <div style="padding:2rem;font-family:Inter,sans-serif;color:#e2e8f0;background:#03040a;min-height:100vh;">
-          <h1 style="color:#FF6B35;font-size:2rem;margin-bottom:1rem;">GS Arena</h1>
-          <p style="font-size:1.125rem;line-height:1.6;margin-bottom:1rem;">
-            Real-time tournament management and live leaderboards for BGMI and Free Fire esports.
-          </p>
-          <p style="color:#94a3b8;font-size:0.95rem;">
-            Please enable JavaScript to access full live scoring, real-time match analytics, and interactive team registration portals.
-          </p>
-        </div>
-      </noscript>
-    </div>
+  <body class="bg-transparent text-slate-100 antialiased selection:bg-brand-500 selection:text-white min-h-screen">
+    <div id="root" class="relative z-10 min-h-screen bg-transparent"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

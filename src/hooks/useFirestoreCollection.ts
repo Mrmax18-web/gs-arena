@@ -1,0 +1,75 @@
+import { useState, useEffect } from 'react';
+import {
+  collection,
+  query,
+  onSnapshot,
+  QueryConstraint,
+  FirestoreDataConverter,
+  Query,
+  DocumentData,
+} from 'firebase/firestore';
+import { db, isFirebaseConfigured } from '../lib/firebase';
+
+export interface UseFirestoreCollectionResult<T> {
+  data: T[];
+  loading: boolean;
+  error: Error | null;
+  refetch: () => void;
+}
+
+export function useFirestoreCollection<T>(
+  collectionPath: string,
+  constraints: QueryConstraint[] = [],
+  converter?: FirestoreDataConverter<T>
+): UseFirestoreCollectionResult<T> {
+  const [data, setData] = useState<T[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<Error | null>(null);
+  const [tick, setTick] = useState(0);
+
+  const refetch = () => setTick((t) => t + 1);
+
+  useEffect(() => {
+    if (!collectionPath || !isFirebaseConfigured() || !db) {
+      setLoading(false);
+      setData([]);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const colRef = collection(db, collectionPath);
+      const q: Query<T | DocumentData, DocumentData> = converter
+        ? query(colRef.withConverter(converter), ...constraints)
+        : query(colRef, ...constraints);
+
+      const unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          const items: T[] = [];
+          snapshot.forEach((doc) => {
+            const item = doc.data() as T;
+            if (item) items.push(item);
+          });
+          setData(items);
+          setLoading(false);
+        },
+        (err) => {
+          console.warn(`Firestore collection error on ${collectionPath}:`, err);
+          setError(err);
+          setLoading(false);
+        }
+      );
+
+      return () => unsubscribe();
+    } catch (err: any) {
+      console.warn(`Exception setting up listener for ${collectionPath}:`, err);
+      setError(err instanceof Error ? err : new Error(String(err)));
+      setLoading(false);
+    }
+  }, [collectionPath, JSON.stringify(constraints.map((c) => c.type)), tick]);
+
+  return { data, loading, error, refetch };
+}

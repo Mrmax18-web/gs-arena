@@ -1,85 +1,62 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { GameConfig, GameId } from '../types/game';
+import { CANONICAL_GAMES, GAME_STORAGE_KEY } from '../lib/constants';
 
-export type Game = 'BGMI' | 'Free Fire';
-export type Mode = 'BR' | 'CS';
-
-export interface GameContextType {
-  currentGame: Game;
-  setCurrentGame: (game: Game) => void;
-  currentMode: Mode;
-  setCurrentMode: (mode: Mode) => void;
-  hasSelectedGame: boolean;
-  clearGame: () => void;
+interface GameContextType {
+  gameId: GameId;
+  game: GameConfig;
+  setGameId: (id: GameId) => void;
 }
 
-const GameContext = createContext<GameContextType | null>(null);
+const VALID_GAME_IDS: readonly GameId[] = ['BGMI', 'FF_BR', 'FF_CS'] as const;
 
-export function GameProvider({ children }: { children: ReactNode }) {
-  const [currentGame, setCurrentGameState] = useState<Game>(() => {
-    const saved = localStorage.getItem('selectedGame') || localStorage.getItem('ttp_game');
-    if (saved === 'BGMI' || saved === 'Free Fire') {
-      return saved as Game;
+export function isValidGameId(val: unknown): val is GameId {
+  return typeof val === 'string' && VALID_GAME_IDS.includes(val as GameId);
+}
+
+const GameContext = createContext<GameContextType | undefined>(undefined);
+
+export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [gameId, setGameIdState] = useState<GameId>(() => {
+    if (typeof window === 'undefined') return 'BGMI';
+    try {
+      const stored = localStorage.getItem(GAME_STORAGE_KEY);
+      if (isValidGameId(stored)) {
+        return stored;
+      }
+    } catch {
+      // Storage unavailable
     }
     return 'BGMI';
   });
 
-  const [currentMode, setCurrentModeState] = useState<Mode>(() => {
-    const saved = localStorage.getItem('selectedMode') || localStorage.getItem('ttp_mode');
-    if (saved === 'BR' || saved === 'CS') {
-      return saved as Mode;
+  useEffect(() => {
+    try {
+      localStorage.setItem(GAME_STORAGE_KEY, gameId);
+    } catch {
+      // Ignore
     }
-    return 'BR';
-  });
+  }, [gameId]);
 
-  const [hasSelectedGame, setHasSelectedGame] = useState<boolean>(() => {
-    const saved = localStorage.getItem('selectedGame') || localStorage.getItem('ttp_game');
-    return saved === 'BGMI' || saved === 'Free Fire';
-  });
+  const setGameId = (id: GameId) => {
+    if (isValidGameId(id)) {
+      setGameIdState(id);
+    }
+  };
 
-  function setCurrentGame(game: Game) {
-    console.log('[GameContext] Switching current game arena to:', game);
-    localStorage.setItem('selectedGame', game);
-    localStorage.setItem('ttp_game', game);
-    setCurrentGameState(game);
-    setHasSelectedGame(true);
-  }
-
-  function setCurrentMode(mode: Mode) {
-    console.log('[GameContext] Switching current mode to:', mode);
-    localStorage.setItem('selectedMode', mode);
-    localStorage.setItem('ttp_mode', mode);
-    setCurrentModeState(mode);
-  }
-
-  function clearGame() {
-    console.log('[GameContext] Clearing selected arena game');
-    localStorage.removeItem('selectedGame');
-    localStorage.removeItem('ttp_game');
-    localStorage.removeItem('selectedMode');
-    localStorage.removeItem('ttp_mode');
-    setHasSelectedGame(false);
-  }
+  const game = CANONICAL_GAMES[gameId] ?? CANONICAL_GAMES.BGMI;
 
   return (
-    <GameContext.Provider
-      value={{
-        currentGame,
-        setCurrentGame,
-        currentMode,
-        setCurrentMode,
-        hasSelectedGame,
-        clearGame,
-      }}
-    >
+    <GameContext.Provider value={{ gameId, game, setGameId }}>
       {children}
     </GameContext.Provider>
   );
-}
+};
 
-export function useGame() {
-  const ctx = useContext(GameContext);
-  if (!ctx) {
-    throw new Error('useGame must be used inside GameProvider');
+export function useGame(): GameContextType {
+  const context = useContext(GameContext);
+  if (!context) {
+    throw new Error('useGame must be used within a GameProvider');
   }
-  return ctx;
+  return context;
 }

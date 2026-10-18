@@ -1,14 +1,30 @@
+# Dependencies
 node_modules/
-.env
-.env.local
-.env.*.local
+functions/node_modules/
+
+# Production build outputs
 dist/
-build/
-.antigravity/
-.vscode/
-.DS_Store
-*.log
-bun.lock
+dist-ssr/
+functions/lib/
+
+# Local Environment Variables
 .env
 .env.local
 .env.*.local
+
+# Debug and Emulator Logs
+*-debug.log
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+
+# IDE and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

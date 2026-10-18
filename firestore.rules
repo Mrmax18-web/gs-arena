@@ -2,66 +2,150 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ADMIN & CREATOR CHECK
+    // ===============================================================
+    // GS Arena - Security Rules Data Model
+    // ===============================================================
+    //
+    // Collection: config/{doc} (system, appearance, background)
+    //   - Read: public
+    //   - Write: creator only (admins explicitly excluded)
+    //
+    // Collection: games/{gameId}
+    //   - Read: public
+    //   - Write: creator only
+    //
+    // Collection: tournaments/{tid}
+    //   - Read: public
+    //   - Write: admin or creator
+    //   Subcollection: matches/{mid} (Read: public, Write: admin/creator)
+    //   Subcollection: teams/{teamId} (Read: public, Write: admin/creator)
+    //   Subcollection: otrClaims/{otr} (Read: admin or owner, Write: transactional creation)
+    //
+    // Collection: publicAnalytics/{tid}
+    //   - Read: public (no login, no PII)
+    //   - Write: admin or creator
+    //
+    // Collection: matchSecrets/{mid}
+    //   - Read, Write: admin or creator ONLY (NEVER public)
+    //
+    // Collection: registrations/{rid}
+    //   - Create: authenticated user owning document, status 'pending', 4 players, valid OTR
+    //   - Read: admin/creator OR document owner
+    //   - Update: admin/creator only (status, approvalStatus, paymentStatus, review fields)
+    //   - Delete: creator only
+    //
+    // Collection: adminRequests/{uid}
+    //   - Create: owner with status 'pending'
+    //   - Read: creator OR owner
+    //   - Update, Delete: false (Cloud Functions Admin SDK only)
+    //
+    // Collection: users/{uid}
+    //   - Read: admin/creator OR self
+    //   - Create: self with role 'public'
+    //   - Update: self only (displayName, updatedAt)
+    //   - Delete: false
+    //
+    // Collection: contactMessages/{id}
+    //   - Create: public (validated message size <= 2000)
+    //   - Read: creator
+    //   - Update, Delete: false
+    // ===============================================================
+
+    function signedIn()  { return request.auth != null; }
+    function role()      { return signedIn() ? request.auth.token.get('role', 'public') : 'public'; }
     function isCreator() {
-      return request.auth != null && (
-        request.auth.token.email in [
-          'dheerajsinghbaghel65@gmail.com',
-          'dheerajsinghbaghel1306@gmail.com',
-          'gsarena704@gmail.com'
-        ] || (
-          exists(/databases/$(database)/documents/config/creator) &&
-          request.auth.token.email == get(/databases/$(database)/documents/config/creator).data.creatorEmail
-        )
+      return signedIn() && (
+        request.auth.token.get('creator', false) == true ||
+        role() == 'creator'
       );
     }
-
-    function isAdmin() {
-      return isCreator();
+    function isAdmin()   {
+      return signedIn() && (
+        request.auth.token.get('admin', false) == true ||
+        role() == 'admin' ||
+        isCreator()
+      );
+    }
+    function onlyChanges(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
     }
 
-    // Background configuration: readable by all, writable only by creator emails
-    match /config/background {
+    match /config/{doc} {
+      allow read: if true;
+      allow write: if isCreator();            // admins explicitly excluded
+    }
+
+    match /games/{gameId} {
       allow read: if true;
       allow write: if isCreator();
-    }
-
-    // User preferences (e.g. theme preference): readable/writable only by that user uid
-    match /users/{userId}/prefs/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
     match /tournaments/{tid} {
       allow read: if true;
-      allow create, update, delete: if true;
-      
-      match /{document=**} {
-        allow read: if true;
-        allow create, update, delete: if true;
+      allow write: if isAdmin();
+      match /matches/{mid} { allow read: if true; allow write: if isAdmin(); }
+      match /teams/{teamId} { allow read: if true; allow write: if isAdmin(); }
+      match /otrClaims/{otr} {
+        allow read: if isAdmin() || (signedIn() && resource.data.ownerUid == request.auth.uid);
+        allow create: if signedIn()
+          && request.resource.data.ownerUid == request.auth.uid
+          && request.resource.data.tournamentId == tid
+          && request.resource.data.otr == otr;
+        allow update, delete: if isAdmin();
       }
     }
 
+    match /publicAnalytics/{tid} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /matchSecrets/{mid} {
+      allow read, write: if isAdmin();         // never public
+    }
+
     match /registrations/{rid} {
-      allow create, read, update, delete: if true;
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.teamName is string
+        && request.resource.data.teamName.size() >= 2 && request.resource.data.teamName.size() <= 40
+        && request.resource.data.leaderEmail is string
+        && request.resource.data.leaderEmail.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$')
+        && request.resource.data.players is list
+        && request.resource.data.players.size() == 4
+        && request.resource.data.otr is string
+        && request.resource.data.otr.size() >= 6 && request.resource.data.otr.size() <= 40;
+      allow read: if isAdmin() || (signedIn() && resource.data.ownerUid == request.auth.uid);
+      allow update: if isAdmin() && onlyChanges([
+        'status','approvalStatus','paymentStatus','reviewedBy','reviewedAt','reviewNote',
+        'paymentReviewedBy','paymentReviewedAt','paymentReviewNote','updatedAt'
+      ]);
+      allow delete: if isCreator();
     }
 
-    match /adminRequests/{rid} {
-      allow create: if true;
-      allow read: if true;
-      allow update, delete: if true;
+    match /adminRequests/{uid} {
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.uid == uid
+        && request.resource.data.status == 'pending';
+      allow read: if isCreator() || (signedIn() && request.auth.uid == uid);
+      allow update, delete: if false;          // changed only by Cloud Functions
     }
 
-    match /config/{docId} {
-      allow read: if true;
-      allow write: if isCreator();
+    match /users/{uid} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow create: if signedIn() && request.auth.uid == uid && request.resource.data.role == 'public';
+      allow update: if signedIn() && request.auth.uid == uid && onlyChanges(['displayName','updatedAt']);
+      allow delete: if false;
     }
 
-    match /audit/{aid} {
-      allow create, read, update, delete: if true;
+    match /contactMessages/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['name','email','subject','message','createdAt'])
+        && request.resource.data.message is string && request.resource.data.message.size() <= 2000;
+      allow read: if isCreator();
+      allow update, delete: if false;
     }
 
-    match /test-ping/{tid} {
-      allow read, write: if true;
-    }
+    match /{document=**} { allow read, write: if false; }   // deny by default
   }
 }

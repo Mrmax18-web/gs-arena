@@ -1,0 +1,62 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isCreator() {
+      return signedIn() && (
+        request.auth.token.get('creator', false) == true ||
+        request.auth.token.get('role', 'public') == 'creator'
+      );
+    }
+
+    function isAdmin() {
+      return signedIn() && (
+        request.auth.token.get('admin', false) == true ||
+        request.auth.token.get('role', 'public') == 'admin' ||
+        isCreator()
+      );
+    }
+
+    function isImageBelow5MB() {
+      return request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+
+    // Public team emblems
+    match /tournaments/{tid}/logos/{filename} {
+      allow read: if true;
+      allow write: if signedIn() && isImageBelow5MB();
+    }
+
+    // Private payment screenshot proofs - accessible only by owner or tournament admins
+    match /tournaments/{tid}/payments/{filename} {
+      allow read: if isAdmin() || (
+        signedIn() && filename.matches('^' + request.auth.uid + '_.*')
+      );
+      allow write: if signedIn()
+        && filename.matches('^' + request.auth.uid + '_.*')
+        && isImageBelow5MB();
+    }
+
+    // Tournament QR codes & promotional tournament assets
+    match /tournaments/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin() && isImageBelow5MB();
+    }
+
+    // Appearance assets (icons, brand logos)
+    match /appearance/{allPaths=**} {
+      allow read: if true;
+      allow write: if isCreator() && isImageBelow5MB();
+    }
+
+    // Deny all other access by default
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

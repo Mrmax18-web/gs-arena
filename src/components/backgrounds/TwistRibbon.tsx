@@ -1,383 +1,183 @@
-// Twist Ribbon — Originkit
+// Twist Ribbon — Originkit DriftingLeftSmooth
+import React, { useEffect, useRef, type CSSProperties } from 'react';
+import { useBackground } from '../../context/BackgroundContext';
 
-import { useEffect, useRef, type CSSProperties } from "react"
+type RGBA = [number, number, number, number];
 
-type RGBA = [number, number, number, number]
-
-const COLOR_CACHE = new Map<string, RGBA | null>()
+const COLOR_CACHE = new Map<string, RGBA | null>();
 
 function parseColor(input: string | undefined, fallback: RGBA): RGBA {
-    if (typeof input !== "string") return fallback
-    let hit = COLOR_CACHE.get(input)
-    if (hit === undefined) {
-        hit = parseColorRaw(input)
-        COLOR_CACHE.set(input, hit)
-    }
-    return hit ?? fallback
+  if (typeof input !== 'string') return fallback;
+  let hit = COLOR_CACHE.get(input);
+  if (hit === undefined) {
+    hit = parseColorRaw(input);
+    COLOR_CACHE.set(input, hit);
+  }
+  return hit ?? fallback;
 }
 
 function parseColorRaw(raw: string): RGBA | null {
-    let s = raw.trim()
-    const v = /^var\(\s*--[^,]+,\s*(.+)\)$/.exec(s)
-    if (v) s = v[1].trim()
-    if (s[0] === "#") {
-        const h = s.slice(1)
-        const x = (a: string) => parseInt(a, 16)
-        let r: number, g: number, b: number, a = 255
-        if (h.length === 3 || h.length === 4) {
-            r = x(h[0] + h[0]); g = x(h[1] + h[1]); b = x(h[2] + h[2])
-            if (h.length === 4) a = x(h[3] + h[3])
-        } else if (h.length === 6 || h.length === 8) {
-            r = x(h.slice(0, 2)); g = x(h.slice(2, 4)); b = x(h.slice(4, 6))
-            if (h.length === 8) a = x(h.slice(6, 8))
-        } else return null
-        const out: RGBA = [r / 255, g / 255, b / 255, a / 255]
-        return out.every(Number.isFinite) ? out : null
-    }
-    const m = /^(rgba?|hsla?)\(([^)]*)\)$/i.exec(s)
-    if (!m) return null
-    const parts = m[2].split(/[\s,/]+/).filter(Boolean)
-    if (parts.length < 3) return null
-    const num = (p: string, scale: number) =>
-        p.endsWith("%") ? (parseFloat(p) / 100) * scale : parseFloat(p)
-    const alpha = parts.length > 3 ? num(parts[3], 1) : 1
-    let rgb: [number, number, number]
-    if (m[1].toLowerCase().startsWith("rgb")) {
-        rgb = [num(parts[0], 255) / 255, num(parts[1], 255) / 255, num(parts[2], 255) / 255]
-    } else {
-        const hh = (((parseFloat(parts[0]) % 360) + 360) % 360) / 360
-        const ss = num(parts[1], 1), ll = num(parts[2], 1)
-        const q = ll < 0.5 ? ll * (1 + ss) : ll + ss - ll * ss
-        const p = 2 * ll - q
-        const f = (t: number) => {
-            t = (t + 1) % 1
-            if (t < 1 / 6) return p + (q - p) * 6 * t
-            if (t < 1 / 2) return q
-            if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6
-            return p
-        }
-        rgb = [f(hh + 1 / 3), f(hh), f(hh - 1 / 3)]
-    }
-    const out: RGBA = [rgb[0], rgb[1], rgb[2], alpha]
-    return out.every(Number.isFinite) ? out.map((c) => Math.min(1, Math.max(0, c))) as RGBA : null
-}
-
-function cssRgba(c: RGBA): string {
-    return `rgba(${Math.round(c[0] * 255)}, ${Math.round(c[1] * 255)}, ${Math.round(c[2] * 255)}, ${c[3]})`
-}
-
-interface FramerFont {
-    fontFamily?: string
-    fontWeight?: number | string
-    fontStyle?: string
-    fontSize?: number | string
-    lineHeight?: number | string
-    letterSpacing?: number | string
-}
-
-const FALLBACK_FAMILY = "Inter, system-ui, sans-serif"
-
-function quoteFamily(family: string): string {
-    return family
-        .split(",")
-        .map((n) => n.trim())
-        .filter(Boolean)
-        .map((n) => (n[0] === "'" || n[0] === '"' || /^[a-z-]+$/i.test(n) ? n : `"${n.replace(/"/g, '\\"')}"`))
-        .join(", ")
-}
-
-function fontShorthand(font: FramerFont | undefined, fallbackSize: number, fallbackWeight: number) {
-    const f = font || {}
-    let size = fallbackSize
-    if (typeof f.fontSize === "number" && Number.isFinite(f.fontSize)) size = f.fontSize
-    else if (typeof f.fontSize === "string") {
-        const n = parseFloat(f.fontSize)
-        if (Number.isFinite(n)) size = f.fontSize.includes("rem") ? n * 16 : n
-    }
-    let lineHeight = size * 1.3
-    if (typeof f.lineHeight === "number" && Number.isFinite(f.lineHeight))
-        lineHeight = f.lineHeight <= 4 ? f.lineHeight * size : f.lineHeight
-    else if (typeof f.lineHeight === "string") {
-        const n = parseFloat(f.lineHeight)
-        if (Number.isFinite(n))
-            lineHeight = f.lineHeight.endsWith("%") ? (n / 100) * size : f.lineHeight.endsWith("em") ? n * size : n <= 4 ? n * size : n
-    }
-    const family = f.fontFamily ? quoteFamily(f.fontFamily) : FALLBACK_FAMILY
-    const shorthand = `${f.fontStyle || "normal"} ${f.fontWeight || fallbackWeight} ${size}px ${family}`
-    return { shorthand, size, lineHeight }
-}
-
-function wrapLines(measure: (s: string) => number, text: string, maxWidth: number): string[] {
-    const out: string[] = []
-    for (const para of String(text ?? "").split("\n")) {
-        const words = para.split(/ +/)
-        let line = ""
-        for (const w of words) {
-            const next = line ? `${line} ${w}` : w
-            if (line && measure(next) > maxWidth) {
-                out.push(line)
-                line = w
-            } else line = next
-        }
-        out.push(line)
-    }
-    return out
-}
-
-function radiusPx(w: number, h: number, pct: number): number {
-    return (Math.min(w, h) / 2) * Math.min(1, Math.max(0, pct / 100))
-}
-
-type Phase = "idle" | "playing" | "held" | "restoring"
-interface TriggerState { phase: Phase; t: number; timer: number; prevPlay: boolean | undefined }
-interface TriggerInput {
-    dt: number; animDt: number; playDur: number; restoreDur: number; holdS: number
-    play: boolean | undefined; clicked: boolean; onCanvas: boolean
-}
-interface TriggerEvents { started: boolean; completed: boolean; restored: boolean }
-
-const TRIGGER_IDLE: TriggerState = { phase: "idle", t: 0, timer: 0, prevPlay: undefined }
-const CANVAS_IDLE_S = 1
-
-const EPS = 1e-9
-
-function stepTrigger(s: TriggerState, i: TriggerInput): { s: TriggerState; e: TriggerEvents } {
-    const e: TriggerEvents = { started: false, completed: false, restored: false }
-    const n: TriggerState = { ...s, prevPlay: i.play }
-    const controlled = i.play !== undefined
-    const start = (t = 0) => { n.phase = "playing"; n.t = t; n.timer = 0; e.started = true }
-    const restore = (t = 0) => { n.phase = "restoring"; n.t = t; n.timer = 0 }
-
-    switch (s.phase) {
-        case "idle":
-            n.timer = s.timer + i.dt
-            if (controlled ? i.play === true : i.clicked || (i.onCanvas && n.timer >= CANVAS_IDLE_S - EPS)) start()
-            break
-        case "playing":
-            if (controlled && i.play === false) { restore(1 - s.t); break }
-            n.t = Math.min(1, s.t + i.animDt / Math.max(1e-3, i.playDur))
-            if (n.t >= 1 - EPS) { n.t = 1; n.phase = "held"; n.timer = 0; e.completed = true }
-            break
-        case "held":
-            if (controlled) { if (i.play === false) restore(0); break }
-            n.timer = s.timer + i.dt
-            if (n.timer >= i.holdS - EPS) restore(0)
-            break
-        case "restoring":
-            if (controlled && i.play === true) { start(1 - s.t); break }
-            n.t = Math.min(1, s.t + i.animDt / Math.max(1e-3, i.restoreDur))
-            if (n.t >= 1 - EPS) { n.phase = "idle"; n.t = 0; n.timer = 0; e.restored = true }
-            break
-    }
-    return { s: n, e }
-}
-
-interface CardSpec {
-    w: number; h: number; dpr: number; fill: string; rounded: number
-    title: string; body: string; font: FramerFont | undefined; textColor: string
-    image: HTMLImageElement | null; pad: number
-}
-interface GlyphBox { ch: string; x: number; y: number; w: number; h: number }
-
-function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-    ctx.beginPath()
-    ctx.moveTo(x + r, y)
-    ctx.arcTo(x + w, y, x + w, y + h, r)
-    ctx.arcTo(x + w, y + h, x, y + h, r)
-    ctx.arcTo(x, y + h, x, y, r)
-    ctx.arcTo(x, y, x + w, y, r)
-    ctx.closePath()
-}
-
-function drawCard(ctx: CanvasRenderingContext2D, spec: CardSpec, wantGlyphs: boolean): GlyphBox[] {
-    const { w, h, dpr, pad } = spec
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    ctx.clearRect(0, 0, w, h)
-    const r = radiusPx(w, h, spec.rounded)
-    roundRectPath(ctx, 0, 0, w, h, r)
-    ctx.fillStyle = cssRgba(parseColor(spec.fill, [1, 1, 1, 1]))
-    ctx.fill()
-    ctx.save()
-    roundRectPath(ctx, 0, 0, w, h, r)
-    ctx.clip()
-    let y = pad
-    if (spec.image && spec.image.naturalWidth > 0) {
-        const ih = Math.round(h * 0.5)
-        const s = Math.max(w / spec.image.naturalWidth, ih / spec.image.naturalHeight)
-        const dw = spec.image.naturalWidth * s, dh = spec.image.naturalHeight * s
-        ctx.save()
-        ctx.beginPath(); ctx.rect(0, 0, w, ih); ctx.clip()
-        ctx.drawImage(spec.image, (w - dw) / 2, (ih - dh) / 2, dw, dh)
-        ctx.restore()
-        y = ih + pad
-    }
-    const glyphs: GlyphBox[] = []
-    const color = cssRgba(parseColor(spec.textColor, [0, 0, 0, 1]))
-    const title = fontShorthand(spec.font, 22, 700)
-    const body = fontShorthand(spec.font ? { ...spec.font, fontSize: title.size * 0.68, fontWeight: 400 } : undefined, 15, 400)
-    const block = (text: string, f: { shorthand: string; size: number; lineHeight: number }) => {
-        if (!text) return
-        ctx.font = f.shorthand
-        ctx.fillStyle = color
-        ctx.textBaseline = "top"
-        ctx.textAlign = "left"
-        for (const line of wrapLines((s) => ctx.measureText(s).width, text, w - pad * 2)) {
-            if (y + f.size > h - pad * 0.5) break
-            ctx.fillText(line, pad, y)
-            if (wantGlyphs) {
-                let prefix = ""
-                for (const ch of line) {
-                    const x = pad + ctx.measureText(prefix).width
-                    const cw = pad + ctx.measureText(prefix + ch).width - x
-                    if (ch.trim()) glyphs.push({ ch, x, y, w: cw, h: f.lineHeight })
-                    prefix += ch
-                }
-            }
-            y += f.lineHeight
-        }
-        y += f.size * 0.4
-    }
-    block(spec.title, title)
-    block(spec.body, body)
-    ctx.restore()
-    return glyphs
-}
-
-function loadImage(src: string | undefined): Promise<HTMLImageElement | null> {
-    return new Promise((resolve) => {
-        if (!src || typeof Image === "undefined") return resolve(null)
-        const img = new Image()
-        img.crossOrigin = "anonymous"
-        img.onload = () => resolve(img)
-        img.onerror = () => resolve(null)
-        img.src = src
-    })
-}
-
-function createProgram<U extends string>(gl: WebGL2RenderingContext, vs: string, fs: string, uniforms: readonly U[]) {
-    const sh = (type: number, src: string) => {
-        const s = gl.createShader(type)!
-        gl.shaderSource(s, src)
-        gl.compileShader(s)
-        if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-            const log = gl.getShaderInfoLog(s) || "shader compile failed"
-            gl.deleteShader(s)
-            throw new Error(log)
-        }
-        return s
-    }
-    const program = gl.createProgram()!
-    const vsh = sh(gl.VERTEX_SHADER, vs)
-    const fsh = sh(gl.FRAGMENT_SHADER, fs)
-    gl.attachShader(program, vsh)
-    gl.attachShader(program, fsh)
-    gl.linkProgram(program)
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-        const log = gl.getProgramInfoLog(program) || "link failed"
-        gl.deleteShader(vsh)
-        gl.deleteShader(fsh)
-        gl.deleteProgram(program)
-        throw new Error(log)
-    }
-
-    gl.deleteShader(vsh)
-    gl.deleteShader(fsh)
-    const u = {} as Record<U, WebGLUniformLocation>
-    for (const name of uniforms) {
-        const loc = gl.getUniformLocation(program, name)
-        if (!loc) {
-            gl.deleteProgram(program)
-            throw new Error(`uniform ${name} not found`)
-        }
-        u[name] = loc
-    }
-    return { program, u }
+  let s = raw.trim();
+  const v = /^var\(\s*--[^,]+,\s*(.+)\)$/.exec(s);
+  if (v) s = v[1].trim();
+  if (s[0] === '#') {
+    const h = s.slice(1);
+    const x = (a: string) => parseInt(a, 16);
+    let r: number,
+      g: number,
+      b: number,
+      a = 255;
+    if (h.length === 3 || h.length === 4) {
+      r = x(h[0] + h[0]);
+      g = x(h[1] + h[1]);
+      b = x(h[2] + h[2]);
+      if (h.length === 4) a = x(h[3] + h[3]);
+    } else if (h.length === 6 || h.length === 8) {
+      r = x(h.slice(0, 2));
+      g = x(h.slice(2, 4));
+      b = x(h.slice(4, 6));
+      if (h.length === 8) a = x(h.slice(6, 8));
+    } else return null;
+    const out: RGBA = [r / 255, g / 255, b / 255, a / 255];
+    return out.every(Number.isFinite) ? out : null;
+  }
+  const m = /^(rgba?|hsla?)\(([^)]*)\)$/i.exec(s);
+  if (!m) return null;
+  const parts = m[2].split(/[\s,/]+/).filter(Boolean);
+  if (parts.length < 3) return null;
+  const num = (p: string, scale: number) =>
+    p.endsWith('%') ? (parseFloat(p) / 100) * scale : parseFloat(p);
+  const alpha = parts.length > 3 ? num(parts[3], 1) : 1;
+  let rgb: [number, number, number];
+  if (m[1].toLowerCase().startsWith('rgb')) {
+    rgb = [num(parts[0], 255) / 255, num(parts[1], 255) / 255, num(parts[2], 255) / 255];
+  } else {
+    const hh = (((parseFloat(parts[0]) % 360) + 360) % 360) / 360;
+    const ss = num(parts[1], 1),
+      ll = num(parts[2], 1);
+    const q = ll < 0.5 ? ll * (1 + ss) : ll + ss - ll * ss;
+    const p = 2 * ll - q;
+    const f = (t: number) => {
+      t = (t + 1) % 1;
+      if (t < 1 / 6) return p + (q - p) * 6 * t;
+      if (t < 1 / 2) return q;
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+      return p;
+    };
+    rgb = [f(hh + 1 / 3), f(hh), f(hh - 1 / 3)];
+  }
+  const out: RGBA = [rgb[0], rgb[1], rgb[2], alpha];
+  return out.every(Number.isFinite)
+    ? (out.map((c) => Math.min(1, Math.max(0, c))) as RGBA)
+    : null;
 }
 
 const ADVANCED_DEFAULTS = {
-    driftSec: 64,
-    twistRate: 300,
-    breathe: 0,
-    boxHeight: 110,
-    positionY: 50,
-    halfWidth: 50,
-    pinchWidth: 50,
-    curl: 90,
-    topLight: 200,
-    pinchLight: 0,
-    fold: 105,
-    blueSpan: 15,
-    blueSide: 0,
-    fullBlueAt: 89,
-    fullBlue: 100,
-    dither: 0,
-    blueGlow: 35,
-    edgeDither: 0,
-    ribbonGrain: 0,
-    grainPx: 1,
-    cool: 80,
-    coolEnd: 1,
-    goldColor: "#E3BD78",
-    highColor: "#FBF5E4",
-    blueDeep: "#3F7DE6",
-    blueHigh: "#5A95F0",
-    paleColor: "#F8F4EA",
-    coolTint: "#DCE6F5",
-    vignette: 0,
-}
+  driftSec: 64,
+  twistRate: 300,
+  breathe: 0,
+  boxHeight: 110,
+  positionY: 50,
+  halfWidth: 50,
+  pinchWidth: 50,
+  curl: 90,
+  topLight: 200,
+  pinchLight: 0,
+  fold: 105,
+  blueSpan: 15,
+  blueSide: 0,
+  fullBlueAt: 89,
+  fullBlue: 100,
+  dither: 0,
+  blueGlow: 35,
+  edgeDither: 0,
+  ribbonGrain: 0,
+  grainPx: 1,
+  cool: 80,
+  coolEnd: 1,
+  goldColor: '#E3BD78',
+  highColor: '#FBF5E4',
+  blueDeep: '#3F7DE6',
+  blueHigh: '#5A95F0',
+  paleColor: '#F8F4EA',
+  coolTint: '#DCE6F5',
+  vignette: 0,
+};
 
 interface EffectProps {
-    thickness?: number
-    colorSplit?: number
-    direction?: number
-    advanced?: Partial<typeof ADVANCED_DEFAULTS>
+  thickness?: number;
+  colorSplit?: number;
+  direction?: number;
+  advanced?: Partial<typeof ADVANCED_DEFAULTS>;
 }
 
 function clampN(v: number, lo: number, hi: number): number {
-    return Math.max(lo, Math.min(hi, v))
+  return Math.max(lo, Math.min(hi, v));
 }
 
-function effectUniforms(gl: WebGL2RenderingContext, u: (name: string) => WebGLUniformLocation | null, p: Props): void {
-    const adv = { ...ADVANCED_DEFAULTS, ...(p.advanced ?? {}) }
-    const f = (name: string, v: number) => gl.uniform1f(u(name), v)
-    const c3 = (name: string, v: string | undefined, fb: RGBA) => {
-        const c = parseColor(v, fb)
-        gl.uniform3f(u(name), c[0], c[1], c[2])
-    }
-    const split = clampN(num(p.colorSplit, 52), 0, 100) / 100
-    f("uThick", clampN(num(p.thickness, 100), 20, 300) / 100)
-    f("uBlueStart", split)
-    f("uBlueEnd", split + clampN(num(adv.blueSpan, 14), 1, 50) / 100)
-    f("uFullFrom", split + clampN(num(adv.fullBlueAt, 32), 0, 100) / 100)
-    f("uFullBlue", clampN(num(adv.fullBlue, 100), 0, 100) / 100)
-    f("uBlueSide", clampN(num(adv.blueSide, 0), -100, 100) / 100)
-    f("uDrift", Math.max(1, num(adv.driftSec, 20)))
-    f("uDirection", (((num(p.direction, 0) % 360) + 360) % 360) * Math.PI / 180)
-    f("uTwistRate", clampN(num(adv.twistRate, 110), 0, 300) / 100)
-    f("uBreathe", clampN(num(adv.breathe, 8), 0, 50) / 100)
-    f("uAspect", clampN(num(adv.boxHeight, 100), 5, 200) / 100)
-    f("uPosY", clampN(num(adv.positionY, 50), 0, 100) / 100)
-    f("uWidth", clampN(num(adv.halfWidth, 17), 2, 50) / 100)
-    f("uMinWidth", clampN(num(adv.pinchWidth, 10), 0, 50) / 100)
-    f("uCurl", (clampN(num(adv.curl, 50), 0, 90) * Math.PI) / 180)
-    f("uLight", clampN(num(adv.topLight, 100), 0, 200) / 100)
-    f("uPinchLight", clampN(num(adv.pinchLight, 60), 0, 200) / 100)
-    f("uFold", clampN(num(adv.fold, 100), 0, 200) / 100)
-    f("uDither", clampN(num(adv.dither, 35), 0, 100) / 100)
-    f("uBlueGlow", clampN(num(adv.blueGlow, 35), 0, 100) / 100)
-    f("uEdgeDither", clampN(num(adv.edgeDither, 4), 0, 50) / 100)
-    f("uRibbonGrain", clampN(num(adv.ribbonGrain, 25), 0, 100) / 100)
-    f("uGrainPx", clampN(num(adv.grainPx, 1), 1, 6))
-    f("uCool", clampN(num(adv.cool, 80), 0, 100) / 100)
-    f("uCoolEnd", clampN(num(adv.coolEnd, 15), 1, 50) / 100)
-    f("uVignette", clampN(num(adv.vignette, 0), 0, 100) / 100)
-    c3("uGold", adv.goldColor, [0.89, 0.74, 0.47, 1])
-    c3("uHigh", adv.highColor, [0.98, 0.96, 0.89, 1])
-    c3("uBlueDeep", adv.blueDeep, [0.25, 0.49, 0.9, 1])
-    c3("uBlueHigh", adv.blueHigh, [0.35, 0.58, 0.94, 1])
-    c3("uPale", adv.paleColor, [0.97, 0.96, 0.92, 1])
-    c3("uCoolTint", adv.coolTint, [0.86, 0.9, 0.96, 1])
+interface Props extends EffectProps {
+  background?: string;
+  baseColor?: string;
+  accentColor?: string;
+  speed?: number;
+  scale?: number;
+  hover?: number;
+  style?: CSSProperties;
 }
+
+function num(v: unknown, d: number): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : d;
+}
+
+function effectUniforms(
+  gl: WebGL2RenderingContext,
+  u: (name: string) => WebGLUniformLocation | null,
+  p: Props
+): void {
+  const adv = { ...ADVANCED_DEFAULTS, ...(p.advanced ?? {}) };
+  const f = (name: string, v: number) => gl.uniform1f(u(name), v);
+  const c3 = (name: string, v: string | undefined, fb: RGBA) => {
+    const c = parseColor(v, fb);
+    gl.uniform3f(u(name), c[0], c[1], c[2]);
+  };
+  const split = clampN(num(p.colorSplit, 52), 0, 100) / 100;
+  f('uThick', clampN(num(p.thickness, 100), 20, 300) / 100);
+  f('uBlueStart', split);
+  f('uBlueEnd', split + clampN(num(adv.blueSpan, 14), 1, 50) / 100);
+  f('uFullFrom', split + clampN(num(adv.fullBlueAt, 32), 0, 100) / 100);
+  f('uFullBlue', clampN(num(adv.fullBlue, 100), 0, 100) / 100);
+  f('uBlueSide', clampN(num(adv.blueSide, 0), -100, 100) / 100);
+  f('uDrift', Math.max(1, num(adv.driftSec, 20)));
+  f('uDirection', ((((num(p.direction, 0) % 360) + 360) % 360) * Math.PI) / 180);
+  f('uTwistRate', clampN(num(adv.twistRate, 110), 0, 300) / 100);
+  f('uBreathe', clampN(num(adv.breathe, 8), 0, 50) / 100);
+  f('uAspect', clampN(num(adv.boxHeight, 100), 5, 200) / 100);
+  f('uPosY', clampN(num(adv.positionY, 50), 0, 100) / 100);
+  f('uWidth', clampN(num(adv.halfWidth, 17), 2, 50) / 100);
+  f('uMinWidth', clampN(num(adv.pinchWidth, 10), 0, 50) / 100);
+  f('uCurl', (clampN(num(adv.curl, 50), 0, 90) * Math.PI) / 180);
+  f('uLight', clampN(num(adv.topLight, 100), 0, 200) / 100);
+  f('uPinchLight', clampN(num(adv.pinchLight, 60), 0, 200) / 100);
+  f('uFold', clampN(num(adv.fold, 100), 0, 200) / 100);
+  f('uDither', clampN(num(adv.dither, 35), 0, 100) / 100);
+  f('uBlueGlow', clampN(num(adv.blueGlow, 35), 0, 100) / 100);
+  f('uEdgeDither', clampN(num(adv.edgeDither, 4), 0, 50) / 100);
+  f('uRibbonGrain', clampN(num(adv.ribbonGrain, 25), 0, 100) / 100);
+  f('uGrainPx', clampN(num(adv.grainPx, 1), 1, 6));
+  f('uCool', clampN(num(adv.cool, 80), 0, 100) / 100);
+  f('uCoolEnd', clampN(num(adv.coolEnd, 15), 1, 50) / 100);
+  f('uVignette', clampN(num(adv.vignette, 0), 0, 100) / 100);
+  c3('uGold', adv.goldColor, [0.89, 0.74, 0.47, 1]);
+  c3('uHigh', adv.highColor, [0.98, 0.96, 0.89, 1]);
+  c3('uBlueDeep', adv.blueDeep, [0.25, 0.49, 0.9, 1]);
+  c3('uBlueHigh', adv.blueHigh, [0.35, 0.58, 0.94, 1]);
+  c3('uPale', adv.paleColor, [0.97, 0.96, 0.92, 1]);
+  c3('uCoolTint', adv.coolTint, [0.86, 0.9, 0.96, 1]);
+}
+
+const VERT = `#version 300 es
+in vec2 aPos;
+void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`;
 
 const FRAG = `#version 300 es
 precision highp float;
@@ -509,7 +309,6 @@ void main() {
     float n1 = h21(gp);
     float n2 = h21(gp + 17.31);
     float n3 = h21(gp + 91.7);
-    float n4 = h21(gp + 233.9);
 
     float edge = 1.0 - uEdgeDither * n1;
     float aa = 1.0 / max(h * boxH, 1.0);
@@ -547,183 +346,261 @@ void main() {
     col *= 1.0 - uVignette * smoothstep(0.3, 0.85, length(uv - 0.5) * 1.2);
 
     outColor = vec4(clamp(col, 0.0, 1.0), 1.0);
-}`
-
-interface Props extends EffectProps {
-    background?: string
-    baseColor?: string
-    accentColor?: string
-    speed?: number
-    scale?: number
-    hover?: number
-    style?: CSSProperties
-}
-
-function num(v: unknown, d: number): number {
-    return typeof v === "number" && Number.isFinite(v) ? v : d
-}
-
-const VERT = `#version 300 es
-in vec2 aPos;
-void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`
+}`;
 
 function __OriginkitBase_DriftingLeftSmooth(props: Props) {
-    const { background = "#000000", baseColor = "#F4E3B0", accentColor = "#4F8BEA", speed = 50, scale = 163, hover = 200, style } = props
-    void [baseColor, accentColor, speed, scale, hover]
-    const rootRef = useRef<HTMLDivElement>(null)
-    const canvasRef = useRef<HTMLCanvasElement>(null)
-    const propsRef = useRef(props)
-    propsRef.current = props
+  const {
+    background = '#000000',
+    baseColor = '#F4E3B0',
+    accentColor = '#4F8BEA',
+    speed = 50,
+    scale = 163,
+    hover = 200,
+    style,
+  } = props;
+  void [baseColor, accentColor, speed, scale, hover];
+  const rootRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const propsRef = useRef(props);
+  propsRef.current = props;
 
-    useEffect(() => {
-        const root = rootRef.current
-        const canvas = canvasRef.current
-        if (!root || !canvas) return
-        const gl = canvas.getContext("webgl2", { alpha: false, antialias: false, depth: false })
-        if (!gl) return
-        const reduced = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  useEffect(() => {
+    const root = rootRef.current;
+    const canvas = canvasRef.current;
+    if (!root || !canvas) return;
+    const gl = canvas.getContext('webgl2', { alpha: false, antialias: false, depth: false });
+    if (!gl) return;
+    const reduced =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-        const sh = (type: number, src: string) => {
-            const s = gl.createShader(type)!
-            gl.shaderSource(s, src)
-            gl.compileShader(s)
-            if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error("DriftingLeftSmooth shader:", gl.getShaderInfoLog(s))
-            return s
-        }
-        const prog = gl.createProgram()!
-        gl.attachShader(prog, sh(gl.VERTEX_SHADER, VERT))
-        gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FRAG))
-        gl.linkProgram(prog)
-        if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-            console.error("DriftingLeftSmooth link:", gl.getProgramInfoLog(prog))
-            return
-        }
-        gl.useProgram(prog)
-        const buf = gl.createBuffer()
-        gl.bindBuffer(gl.ARRAY_BUFFER, buf)
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW)
-        const loc = gl.getAttribLocation(prog, "aPos")
-        gl.enableVertexAttribArray(loc)
-        gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0)
-        const cache = new Map<string, WebGLUniformLocation | null>()
-        const u = (name: string) => {
-            if (!cache.has(name)) cache.set(name, gl.getUniformLocation(prog, name))
-            return cache.get(name) ?? null
-        }
+    const sh = (type: number, src: string) => {
+      const s = gl.createShader(type)!;
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+        console.error('DriftingLeftSmooth shader:', gl.getShaderInfoLog(s));
+      }
+      return s;
+    };
+    const prog = gl.createProgram()!;
+    gl.attachShader(prog, sh(gl.VERTEX_SHADER, VERT));
+    gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FRAG));
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      console.error('DriftingLeftSmooth link:', gl.getProgramInfoLog(prog));
+      return;
+    }
+    gl.useProgram(prog);
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(prog, 'aPos');
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    const cache = new Map<string, WebGLUniformLocation | null>();
+    const u = (name: string) => {
+      if (!cache.has(name)) cache.set(name, gl.getUniformLocation(prog, name));
+      return cache.get(name) ?? null;
+    };
 
-        let W = 0
-        let H = 0
-        const resize = () => {
-            W = root.offsetWidth
-            H = root.offsetHeight
-            const dpr = Math.min(window.devicePixelRatio || 1, 2)
-            canvas.width = Math.max(1, Math.round(W * dpr))
-            canvas.height = Math.max(1, Math.round(H * dpr))
-        }
-        const ro = new ResizeObserver(resize)
-        ro.observe(root)
-        resize()
+    let W = 0;
+    let H = 0;
+    const resize = () => {
+      W = root.offsetWidth;
+      H = root.offsetHeight;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.max(1, Math.round(W * dpr));
+      canvas.height = Math.max(1, Math.round(H * dpr));
+    };
+    const ro = new ResizeObserver(resize);
+    ro.observe(root);
+    resize();
 
-        let mx = 0.5
-        let my = 0.5
-        let tx = 0.5
-        let ty = 0.5
-        let over = 0
-        let hov = 0
-        const onMove = (e: PointerEvent) => {
-            if (W <= 0 || H <= 0) return
-            tx = e.offsetX / W
-            ty = 1 - e.offsetY / H
-            over = 1
-        }
-        const onLeave = () => {
-            over = 0
-        }
-        canvas.addEventListener("pointermove", onMove)
-        canvas.addEventListener("pointerleave", onLeave)
+    let mx = 0.5;
+    let my = 0.5;
+    let tx = 0.5;
+    let ty = 0.5;
+    let over = 0;
+    let hov = 0;
+    const onMove = (e: PointerEvent) => {
+      if (W <= 0 || H <= 0) return;
+      const rect = root.getBoundingClientRect();
+      tx = (e.clientX - rect.left) / W;
+      ty = 1 - (e.clientY - rect.top) / H;
+      over = 1;
+    };
+    const onLeave = () => {
+      over = 0;
+    };
+    canvas.addEventListener('pointermove', onMove);
+    canvas.addEventListener('pointerleave', onLeave);
+    window.addEventListener('pointermove', onMove, { passive: true });
+    window.addEventListener('pointerleave', onLeave, { passive: true });
 
-        let clock = 0
-        let raf = 0
-        let last = -1
-        const frame = (now: number) => {
-            raf = requestAnimationFrame(frame)
-            const dt = last < 0 ? 0 : Math.min((now - last) / 1000, 1 / 20)
-            last = now
-            const p = propsRef.current
-            clock = (clock + dt * (Math.max(0, Math.min(100, num(p.speed, 50))) / 50) * (reduced ? 0.25 : 1)) % 3600
-            const k = 1 - Math.exp(-dt * 6)
-            mx += (tx - mx) * k
-            my += (ty - my) * k
-            hov += (over - hov) * k
-            const bg = parseColor(p.background, [0.03, 0.03, 0.04, 1])
-            const base = parseColor(p.baseColor, [0.23, 0.18, 0.55, 1])
-            const acc = parseColor(p.accentColor, [0.91, 0.42, 0.57, 1])
-            gl.viewport(0, 0, canvas.width, canvas.height)
-            gl.uniform2f(u("uRes"), canvas.width, canvas.height)
-            gl.uniform1f(u("uTime"), clock)
-            gl.uniform2f(u("uMouse"), mx, my)
-            gl.uniform1f(u("uHover"), hov * (Math.max(0, Math.min(200, num(p.hover, 100))) / 100))
-            gl.uniform3f(u("uBg"), bg[0], bg[1], bg[2])
-            gl.uniform3f(u("uBase"), base[0], base[1], base[2])
-            gl.uniform3f(u("uAccent"), acc[0], acc[1], acc[2])
-            gl.uniform1f(u("uScale"), Math.max(10, Math.min(300, num(p.scale, 100))) / 100)
-            effectUniforms(gl, u, p)
-            gl.drawArrays(gl.TRIANGLES, 0, 3)
-        }
-        raf = requestAnimationFrame(frame)
-        return () => {
-            cancelAnimationFrame(raf)
-            ro.disconnect()
-            canvas.removeEventListener("pointermove", onMove)
-            canvas.removeEventListener("pointerleave", onLeave)
-        }
-    }, [])
+    let clock = 0;
+    let raf = 0;
+    let last = -1;
+    const frame = (now: number) => {
+      raf = requestAnimationFrame(frame);
+      const dt = last < 0 ? 0 : Math.min((now - last) / 1000, 1 / 20);
+      last = now;
+      const p = propsRef.current;
+      clock =
+        (clock +
+          dt *
+            (Math.max(0, Math.min(100, num(p.speed, 50))) / 50) *
+            (reduced ? 0.25 : 1)) %
+        3600;
+      const k = 1 - Math.exp(-dt * 6);
+      mx += (tx - mx) * k;
+      my += (ty - my) * k;
+      hov += (over - hov) * k;
+      const bg = parseColor(p.background, [0.03, 0.03, 0.04, 1]);
+      const base = parseColor(p.baseColor, [0.23, 0.18, 0.55, 1]);
+      const acc = parseColor(p.accentColor, [0.91, 0.42, 0.57, 1]);
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.uniform2f(u('uRes'), canvas.width, canvas.height);
+      gl.uniform1f(u('uTime'), clock);
+      gl.uniform2f(u('uMouse'), mx, my);
+      gl.uniform1f(u('uHover'), hov * (Math.max(0, Math.min(200, num(p.hover, 100))) / 100));
+      gl.uniform3f(u('uBg'), bg[0], bg[1], bg[2]);
+      gl.uniform3f(u('uBase'), base[0], base[1], base[2]);
+      gl.uniform3f(u('uAccent'), acc[0], acc[1], acc[2]);
+      gl.uniform1f(u('uScale'), Math.max(10, Math.min(300, num(p.scale, 100))) / 100);
+      effectUniforms(gl, u, p);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      canvas.removeEventListener('pointermove', onMove);
+      canvas.removeEventListener('pointerleave', onLeave);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerleave', onLeave);
+      if (gl) {
+        gl.deleteProgram(prog);
+        gl.deleteBuffer(buf);
+      }
+    };
+  }, []);
 
-    return (
-        <div ref={rootRef} style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden", background, ...style }}>
-            <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block" }} />
-        </div>
-    )
+  return (
+    <div
+      ref={rootRef}
+      style={{
+        position: 'relative',
+        minWidth: 1200,
+        minHeight: 800,
+        overflow: 'hidden',
+        background,
+        ...style,
+      }}
+    >
+      <canvas
+        ref={canvasRef}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          display: 'block',
+        }}
+      />
+    </div>
+  );
 }
 
 const __originkitPresetProps = {
-  "advanced": {
-    "cool": 80,
-    "curl": 90,
-    "fold": 105,
-    "grain": 0,
-    "dither": 0,
-    "breathe": 0,
-    "coolEnd": 1,
-    "grainPx": 1,
-    "blueDeep": "#3F7DE6",
-    "blueGlow": 35,
-    "blueHigh": "#5A95F0",
-    "blueSide": 0,
-    "blueSpan": 15,
-    "coolTint": "#DCE6F5",
-    "driftSec": 64,
-    "fullBlue": 100,
-    "topLight": 200,
-    "vignette": 0,
-    "boxHeight": 110,
-    "goldColor": "#E3BD78",
-    "halfWidth": 50,
-    "highColor": "#FBF5E4",
-    "paleColor": "#F8F4EA",
-    "positionY": 50,
-    "twistRate": 300,
-    "edgeDither": 0,
-    "fullBlueAt": 89,
-    "pinchLight": 0,
-    "pinchWidth": 50,
-    "ribbonGrain": 0
-  }
+  speed: 30,
+  scale: 100,
+  hover: 99,
+  direction: 7,
+  advanced: {
+    cool: 80,
+    curl: 90,
+    fold: 105,
+    grain: 0,
+    dither: 0,
+    breathe: 0,
+    coolEnd: 1,
+    grainPx: 1,
+    blueDeep: '#3F7DE6',
+    blueGlow: 35,
+    blueHigh: '#5A95F0',
+    blueSide: 0,
+    blueSpan: 15,
+    coolTint: '#DCE6F5',
+    driftSec: 64,
+    fullBlue: 100,
+    topLight: 200,
+    vignette: 0,
+    boxHeight: 110,
+    goldColor: '#E3BD78',
+    halfWidth: 50,
+    highColor: '#FBF5E4',
+    paleColor: '#F8F4EA',
+    positionY: 50,
+    twistRate: 300,
+    edgeDither: 0,
+    fullBlueAt: 89,
+    pinchLight: 0,
+    pinchWidth: 50,
+    ribbonGrain: 0,
+  },
 };
 
 export default function DriftingLeftSmooth(props: Record<string, unknown>) {
-  return <__OriginkitBase_DriftingLeftSmooth {...(__originkitPresetProps as Record<string, unknown>)} {...props} />;
+  return (
+    <__OriginkitBase_DriftingLeftSmooth
+      {...(__originkitPresetProps as Record<string, unknown>)}
+      {...props}
+    />
+  );
 }
-export function TwistRibbon(props: Record<string, unknown>) {
-  return <DriftingLeftSmooth {...props} />;
-}
+
+/**
+ * App-wide background layer embedding DriftingLeftSmooth in a full-screen fixed container.
+ */
+export const TwistRibbon: React.FC = () => {
+  const { config } = useBackground();
+
+  if (!config.enabled) {
+    return (
+      <div
+        aria-hidden="true"
+        className="fixed inset-0 pointer-events-none z-0 bg-[#000000]"
+      />
+    );
+  }
+
+  const overrides: Record<string, unknown> = {};
+  if (config.baseColor) overrides.baseColor = config.baseColor;
+  else if (config.colors?.[0]) overrides.baseColor = config.colors[0];
+
+  if (config.accentColor) overrides.accentColor = config.accentColor;
+  else if (config.colors?.[1]) overrides.accentColor = config.colors[1];
+
+  if (typeof config.speed === 'number') overrides.speed = config.speed;
+  if (typeof config.scale === 'number') overrides.scale = config.scale;
+  if (typeof config.hover === 'number') overrides.hover = config.hover;
+  if (typeof config.colorSplit === 'number') overrides.colorSplit = config.colorSplit;
+
+  return (
+    <DriftingLeftSmooth
+      background="#000000"
+      {...overrides}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+        minWidth: 0,
+        minHeight: 0,
+        zIndex: 0,
+        pointerEvents: 'none',
+      }}
+    />
+  );
+};

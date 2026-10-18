@@ -1,245 +1,79 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  HelpCircle,
-  ChevronDown,
-  ArrowLeft,
-  Mail,
-  MessageCircle,
-  Search,
-} from 'lucide-react';
-import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { TagChip } from '../components/ui/TagChip';
+import { useFirestoreDoc } from '../hooks/useFirestoreDoc';
+import { systemConfigConverter } from '../lib/converters';
+import { SystemConfig } from '../types/config';
+import { DEFAULT_SYSTEM_CONFIG } from '../lib/constants';
+import { GlassCard } from '../components/ui/GlassCard';
+import { Icon } from '@iconify/react';
 
-interface FAQItem {
-  id: number;
-  question: string;
-  answer: string;
-  category: 'Registration' | 'Payments' | 'Gameplay' | 'Support';
-}
+export const FAQPage: React.FC = () => {
+  const { data: config } = useFirestoreDoc<SystemConfig>('config/system', systemConfigConverter);
 
-const FAQS: FAQItem[] = [
-  {
-    id: 1,
-    question: 'How do I register my team?',
-    answer:
-      'Go to /register, select your tournament game (BGMI or Free Fire), fill in your squad and captain details, enter your player UIDs/IGNs, pay the entry fee via UPI, upload your payment receipt screenshot, and submit. Your squad will be reviewed by the tournament administrator.',
-    category: 'Registration',
-  },
-  {
-    id: 2,
-    question: "What's the entry fee?",
-    answer:
-      'Entry fees depend on the arena mode: ₹100 per squad for Battle Royale circuits and ₹150 per squad for Clash Squad circuits. Fees cover prize pool pools and server hosting.',
-    category: 'Payments',
-  },
-  {
-    id: 3,
-    question: 'How do I pay?',
-    answer:
-      'On Step 4 of the registration wizard, scan the official tournament UPI QR code or copy the UPI ID directly into Google Pay, PhonePe, Paytm, or BHIM. Pay the exact fee, save the transaction UTR number, and take a screenshot of the completed payment receipt.',
-    category: 'Payments',
-  },
-  {
-    id: 4,
-    question: 'When will I get approved?',
-    answer:
-      'Squad registrations are reviewed within 24 hours of submission. Once the administrator verifies your payment screenshot and roster validity, you will receive an official approval confirmation email, and your team slot will be confirmed on the tournament leaderboard.',
-    category: 'Registration',
-  },
-  {
-    id: 5,
-    question: 'What if my payment is rejected?',
-    answer:
-      'If your payment could not be verified (for example, an unreadable screenshot or invalid UTR reference), you will receive a rejection notice with the administrator\'s specific reason. You can re-register with verified details or contact our tournament support team.',
-    category: 'Payments',
-  },
-  {
-    id: 6,
-    question: 'Can I change my roster after registering?',
-    answer:
-      'Once submitted, rosters cannot be changed directly by players to preserve bracket fairness. If you have an emergency roster swap before match day, contact the tournament admin with your team reference code and player details for manual update.',
-    category: 'Registration',
-  },
-  {
-    id: 7,
-    question: 'What happens if I miss a match?',
-    answer:
-      'Squads that fail to join the custom room within 10 minutes of scheduled start time forfeit that match fixture by default. In Clash Squad, a forfeit is recorded as a 0-4 round loss. In Battle Royale, absent teams receive 0 placement points. Registration fees are non-refundable for missed fixtures.',
-    category: 'Gameplay',
-  },
-  {
-    id: 8,
-    question: 'How is prize money distributed?',
-    answer:
-      'Prize pool breakdowns are published prior to tournament kickoff. The standard distribution follows a 50% / 30% / 20% split for 1st, 2nd, and 3rd place finishers, respectively. Winnings are disbursed via UPI to the registered captain within 48 hours of grand finals conclusion.',
-    category: 'Gameplay',
-  },
-  {
-    id: 9,
-    question: 'Where can I watch live streams?',
-    answer:
-      'Live stream broadcasting links (YouTube & Twitch) and caster room credentials are posted in the Room Details dispatch sent to captains prior to kickoff. You can also monitor real-time score updates directly on our live leaderboard and public viewer pages.',
-    category: 'Gameplay',
-  },
-  {
-    id: 10,
-    question: 'Who do I contact for issues?',
-    answer:
-      'For urgent tournament questions, contact our support team at support@gsarena.com, join our community Discord server at discord.gg/gsarena, or message our WhatsApp administrator hotline at +91 98765 43210.',
-    category: 'Support',
-  },
-];
+  const faqItems = config?.faqItems?.length ? config.faqItems : DEFAULT_SYSTEM_CONFIG.faqItems;
+  const [openIds, setOpenIds] = useState<Record<string, boolean>>({ 'faq-1': true });
 
-/**
- * Frequently Asked Questions (FAQ) and tournament knowledge base.
- * Explains registration protocols, UPI requirements, match procedures, and prize disbursements.
- */
-export function FAQPage() {
-  const [openId, setOpenId] = useState<number | null>(1);
-  const [searchQuery, setSearchQuery] = useState('');
-
-  const toggleAccordion = (id: number) => {
-    setOpenId((prev) => (prev === id ? null : id));
+  const toggleItem = (id: string) => {
+    setOpenIds((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
   };
 
-  const filteredFaqs = FAQS.filter(
-    (f) =>
-      f.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      f.answer.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   return (
-    <div className="relative min-h-screen text-foreground flex flex-col justify-between">
-      {/* Header */}
-      <header className="relative z-20 w-full px-4 sm:px-8 py-4 flex items-center justify-between border-b border-border bg-surface/75 backdrop-blur-md sticky top-0">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-accent to-accent-orange flex items-center justify-center shadow-lg shadow-accent/20">
-            <HelpCircle className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-black font-mono tracking-wider leading-none text-foreground">
-              FREQUENTLY ASKED QUESTIONS
-            </h1>
-            <span className="text-xs text-muted font-mono tracking-widest block uppercase mt-0.5">
-              Help Center & Tournament Knowledge Base
-            </span>
-          </div>
-        </div>
+    <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6 text-left">
+      <div className="text-center space-y-2 border-b border-slate-200 dark:border-white/10 pb-4">
+        <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+          Frequently Asked Questions
+        </h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400 max-w-lg mx-auto">
+          Common inquiries regarding registrations, match credentials dispatch, scoring metrics, and technical requirements.
+        </p>
+      </div>
 
-        <Link
-          to="/"
-          className="text-xs text-muted hover:text-foreground flex items-center gap-1.5 transition-colors font-mono bg-surface hover:bg-surface-2 px-3 py-1.5 rounded-lg border border-border"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Back to Arena</span>
-        </Link>
-      </header>
+      <div className="space-y-3">
+        {faqItems.map((item) => {
+          const isOpen = Boolean(openIds[item.id]);
 
-      {/* Main Content with 68ch measure */}
-      <main className="relative z-10 flex-1 w-full max-w-[68ch] mx-auto p-4 sm:p-6 lg:p-8 space-y-6 my-4">
-        {/* Search Header */}
-        <div className="text-center space-y-3">
-          <h2 className="text-3xl sm:text-4xl font-black text-foreground font-mono tracking-wide">
-            How can we help your squad?
-          </h2>
-          <p className="text-sm text-muted max-w-lg mx-auto leading-relaxed font-sans">
-            Find immediate answers regarding squad registrations, payment receipts, match room distribution, and competitive brackets.
-          </p>
-          <div className="relative max-w-md mx-auto mt-4">
-            <Search className="w-4 h-4 text-muted absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search answers (e.g. UPI, entry fee, roster, streams)..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-11 pl-10 pr-4 rounded-xl bg-surface border border-border text-foreground placeholder-muted text-xs sm:text-sm outline-none focus:border-accent transition-colors"
-            />
-          </div>
-        </div>
-
-        {/* FAQ Accordion List */}
-        <div className="space-y-3 pt-2">
-          {filteredFaqs.length === 0 ? (
-            <div className="p-8 text-center text-muted text-sm rounded-2xl border border-border bg-surface/75 backdrop-blur-md font-mono">
-              No matching questions found. Try a different search term or contact our support team.
-            </div>
-          ) : (
-            filteredFaqs.map((faq) => {
-              const isOpen = openId === faq.id;
-
-              return (
-                <Card
-                  key={faq.id}
-                  className="border border-border bg-surface/75 backdrop-blur-md overflow-hidden transition-all rounded-2xl shadow-md hover:border-accent/30"
+          return (
+            <GlassCard key={item.id} className="p-0 overflow-hidden transition-all duration-200">
+              <button
+                type="button"
+                onClick={() => toggleItem(item.id)}
+                aria-expanded={isOpen}
+                className="w-full flex items-center justify-between p-5 text-left font-bold text-sm text-slate-900 dark:text-white hover:text-brand-500 dark:hover:text-brand-400 transition-colors focus-visible:outline-none"
+              >
+                <span>{item.question}</span>
+                <motion.span
+                  animate={{ rotate: isOpen ? 180 : 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="text-slate-400 text-lg shrink-0 ml-4"
                 >
-                  <button
-                    type="button"
-                    onClick={() => toggleAccordion(faq.id)}
-                    className="w-full p-4 sm:p-5 flex items-center justify-between gap-4 text-left transition-colors hover:bg-surface-2 cursor-pointer"
+                  <Icon icon="solar:alt-arrow-down-bold" />
+                </motion.span>
+              </button>
+
+              <AnimatePresence initial={false}>
+                {isOpen && (
+                  <motion.div
+                    key="content"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.25, ease: 'easeInOut' }}
+                    className="overflow-hidden"
                   >
-                    <div className="flex items-center gap-3">
-                      <TagChip label={`Q${faq.id}`} variant="accent" size="sm" />
-                      <h3 className="text-base sm:text-lg font-bold text-foreground font-mono tracking-wide">
-                        {faq.question}
-                      </h3>
+                    <div className="px-5 pb-5 pt-1 text-xs text-slate-600 dark:text-slate-300 leading-relaxed border-t border-black/5 dark:border-white/5">
+                      {/* Text only, never unsanitized HTML */}
+                      <p>{item.answer}</p>
                     </div>
-                    <motion.div
-                      animate={{ rotate: isOpen ? 180 : 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="shrink-0 text-muted"
-                    >
-                      <ChevronDown className="w-5 h-5" />
-                    </motion.div>
-                  </button>
-
-                  <AnimatePresence initial={false}>
-                    {isOpen && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.25, ease: 'easeInOut' }}
-                      >
-                        <div className="p-4 sm:p-5 pt-0 border-t border-border text-xs sm:text-sm text-muted leading-relaxed font-sans">
-                          {faq.answer}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </Card>
-              );
-            })
-          )}
-        </div>
-
-        {/* Still Have Questions Banner */}
-        <div className="p-6 rounded-2xl bg-surface/75 backdrop-blur-md border border-border shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
-          <div>
-            <h4 className="text-xl font-black text-foreground font-mono tracking-wide">
-              Still have questions?
-            </h4>
-            <p className="text-xs text-muted font-sans mt-0.5">
-              Our organizers are available on Discord and email to support you.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link to="/contact">
-              <Button variant="primary" size="sm">
-                <Mail className="w-3.5 h-3.5" />
-                <span>Contact Organizer</span>
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="relative z-20 w-full py-4 px-6 border-t border-border text-center text-xs text-muted bg-surface/75 backdrop-blur-md font-mono">
-        © 2026 GS Arena. All Rights Reserved. Help & Knowledge Base.
-      </footer>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </GlassCard>
+          );
+        })}
+      </div>
     </div>
   );
-}
+};

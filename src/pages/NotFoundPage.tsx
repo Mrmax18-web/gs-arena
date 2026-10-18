@@ -1,68 +1,50 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { Home, Trophy, Radio } from 'lucide-react';
-import { Card } from '../components/ui/Card';
+import { useNavigate } from 'react-router-dom';
+import { GlassCard } from '../components/ui/GlassCard';
 import { Button } from '../components/ui/Button';
-import { TagChip } from '../components/ui/TagChip';
+import { Icon } from '@iconify/react';
 
-/**
- * 404 Error page featuring broadcast-grade "SIGNAL LOST" glitch aesthetic.
- * Renders centered over the global WebGL ribbon with graceful reduced-motion fallbacks.
- */
-export function NotFoundPage() {
+export const NotFoundPage: React.FC = () => {
+  const navigate = useNavigate();
+
   return (
-    <div className="relative min-h-screen text-foreground flex flex-col items-center justify-center p-4">
-      <Card className="relative z-10 w-full max-w-lg p-8 sm:p-12 text-center border border-border bg-surface/80 backdrop-blur-2xl shadow-2xl rounded-3xl space-y-6">
-        {/* Signal indicator */}
-        <div className="w-16 h-16 rounded-2xl bg-danger/15 border border-danger/30 flex items-center justify-center mx-auto text-danger">
-          <Radio className="w-8 h-8 motion-safe:animate-pulse" />
+    <div className="flex min-h-[75vh] items-center justify-center p-4">
+      <GlassCard strong className="max-w-md w-full text-center p-8 md:p-10 shadow-2xl border-slate-200 dark:border-white/10">
+        <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-3xl bg-brand-500/10 text-brand-500 border border-brand-500/20 shadow-lg">
+          <Icon icon="solar:compass-bold" className="text-4xl" />
         </div>
 
-        <div>
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <TagChip label="SIGNAL LOST" variant="danger" size="sm" />
-            <TagChip label="FEED DISRUPTED" variant="warn" size="sm" />
-          </div>
+        <span className="text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-brand-500/15 text-brand-600 dark:text-brand-400 border border-brand-500/30">
+          Error 404
+        </span>
 
-          {/* Broadcast Glitch Heading */}
-          <div className="relative inline-block select-none my-2">
-            <span
-              className="text-7xl sm:text-9xl font-black font-mono tracking-tighter text-foreground block drop-shadow-[0_0_20px_rgba(255,59,78,0.3)] motion-safe:animate-pulse"
-              aria-label="404"
-            >
-              404
-            </span>
-            <div
-              className="absolute inset-0 pointer-events-none opacity-30 mix-blend-screen overflow-hidden"
-              style={{
-                backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.15) 2px, rgba(255,255,255,0.15) 4px)',
-              }}
-            />
-          </div>
+        <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-3">
+          Zone Out of Bounds
+        </h2>
 
-          <h1 className="text-xl sm:text-2xl font-black text-foreground font-mono tracking-wider uppercase mt-1">
-            Sector Telemetry Lost
-          </h1>
-          <p className="text-xs sm:text-sm text-muted max-w-sm mx-auto mt-2 leading-relaxed font-sans">
-            The tournament transmission frequency or arena page you requested could not be resolved. All telemetry packets timed out.
-          </p>
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+          The tactical map or document you are attempting to reach does not exist or has been relocated outside the playzone.
+        </p>
+
+        <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <Button
+            variant="primary"
+            icon="solar:cup-star-bold"
+            onClick={() => navigate('/leaderboard')}
+            className="w-full sm:w-auto"
+          >
+            Leaderboard
+          </Button>
+          <Button
+            variant="glass"
+            icon="solar:home-2-bold"
+            onClick={() => navigate('/')}
+            className="w-full sm:w-auto"
+          >
+            Game Select
+          </Button>
         </div>
-
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-3">
-          <Link to="/" className="w-full sm:w-auto">
-            <Button variant="primary" size="md" className="w-full sm:w-auto font-mono">
-              <Home className="w-4 h-4 mr-2" />
-              <span>Back to Home</span>
-            </Button>
-          </Link>
-          <Link to="/leaderboard" className="w-full sm:w-auto">
-            <Button variant="secondary" size="md" className="w-full sm:w-auto font-mono border-border">
-              <Trophy className="w-4 h-4 mr-2 text-accent" />
-              <span>Scoreboard</span>
-            </Button>
-          </Link>
-        </div>
-      </Card>
+      </GlassCard>
     </div>
   );
-}
+};

@@ -1,0 +1,124 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-page: transparent;
+    --primary: #DC2626;
+    --primary-hover: #B91C1C;
+    --primary-light: rgba(220, 38, 38, 0.1);
+  }
+
+  html {
+    font-family: "Agency FB", Teko, Oswald, sans-serif;
+    color-scheme: dark light;
+  }
+
+  body {
+    font-family: "Agency FB", Teko, Oswald, sans-serif;
+    background-color: transparent !important;
+    overflow-x: hidden;
+  }
+
+  button, input, optgroup, select, textarea {
+    font-family: "Agency FB", Teko, Oswald, sans-serif;
+  }
+
+  /* Accessible focus rings */
+  :focus-visible {
+    outline: 2px solid #DC2626;
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Glass tokens with high contrast in both dark and light modes */
+  .glass {
+    background: rgba(255, 255, 255, 0.55);
+    border: 1px solid rgba(0, 0, 0, 0.10);
+    backdrop-filter: blur(64px);
+    -webkit-backdrop-filter: blur(64px);
+    color: #0f172a;
+  }
+
+  .dark .glass {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(64px);
+    -webkit-backdrop-filter: blur(64px);
+    color: #f8fafc;
+  }
+
+  .glass-strong {
+    background: rgba(255, 255, 255, 0.75);
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(64px);
+    -webkit-backdrop-filter: blur(64px);
+    color: #0f172a;
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.1);
+  }
+
+  .dark .glass-strong {
+    background: rgba(20, 24, 38, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    backdrop-filter: blur(64px);
+    -webkit-backdrop-filter: blur(64px);
+    color: #f8fafc;
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+  }
+
+  .glass-sidebar {
+    background: rgba(255, 255, 255, 0.85);
+    border-right: 1px solid rgba(0, 0, 0, 0.10);
+    backdrop-filter: blur(32px);
+    -webkit-backdrop-filter: blur(32px);
+    color: #0f172a;
+  }
+
+  .dark .glass-sidebar {
+    background: rgba(10, 10, 15, 0.65);
+    border-right: 1px solid rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(32px);
+    -webkit-backdrop-filter: blur(32px);
+    color: #f8fafc;
+  }
+
+  .glass-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .glass-card:hover {
+    box-shadow: 0 12px 35px -5px rgba(220, 38, 38, 0.15);
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(150, 150, 150, 0.3);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(150, 150, 150, 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
