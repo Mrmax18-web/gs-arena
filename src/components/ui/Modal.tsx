@@ -46,6 +46,11 @@ export const Modal: React.FC<ModalProps> = ({
   const modalRef = useRef<HTMLDivElement | null>(null);
   const previouslyFocusedElement = useRef<HTMLElement | null>(null);
   const shouldReduceMotion = useReducedMotion();
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!isOpen) return;
@@ -61,7 +66,7 @@ export const Modal: React.FC<ModalProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && closeOnEscape) {
         e.preventDefault();
-        onClose();
+        onCloseRef.current?.();
         return;
       }
 
@@ -90,13 +95,15 @@ export const Modal: React.FC<ModalProps> = ({
 
     document.addEventListener('keydown', handleKeyDown);
 
-    // 4. Focus first focusable element inside modal after open
+    // 4. Focus first focusable element inside modal after open (if not already focused)
     const timer = setTimeout(() => {
       if (modalRef.current) {
-        const firstFocusable = modalRef.current.querySelector<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-        );
-        firstFocusable?.focus();
+        if (!modalRef.current.contains(document.activeElement)) {
+          const firstFocusable = modalRef.current.querySelector<HTMLElement>(
+            'input:not([disabled]), button:not([disabled]), [href], select, textarea, [tabindex]:not([tabindex="-1"])'
+          );
+          firstFocusable?.focus();
+        }
       }
     }, 50);
 
@@ -108,7 +115,7 @@ export const Modal: React.FC<ModalProps> = ({
         previouslyFocusedElement.current.focus();
       }
     };
-  }, [isOpen, onClose, closeOnEscape]);
+  }, [isOpen, closeOnEscape]);
 
   const maxWidthClasses = {
     sm: 'max-w-sm',

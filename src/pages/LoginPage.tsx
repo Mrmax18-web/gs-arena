@@ -8,19 +8,17 @@ import { useToast } from '../components/ui/Toast';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { AdminApplicationSchema } from '../lib/validators';
-import { Modal } from '../components/ui/Modal';
+import { CreatorLoginModal } from '../components/auth/CreatorLoginModal';
 import { Icon } from '@iconify/react';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, signIn, signUp, applyForAdmin, claimCreator } = useAuth();
+  const { user, signIn, signUp, applyForAdmin } = useAuth();
   const { success, error } = useToast();
 
   const [tab, setModalTab] = useState<'signin' | 'signup' | 'reset' | 'apply'>('signin');
   const [secretDialogOpen, setSecretDialogOpen] = useState<boolean>(false);
-  const [secretCode, setSecretCode] = useState<string>('');
-  const [secretSubmitting, setSecretSubmitting] = useState<boolean>(false);
 
   // Sign In / Up State
   const [displayName, setDisplayName] = useState('');
@@ -119,31 +117,6 @@ export const LoginPage: React.FC = () => {
       error('Application Error', err?.message || 'Could not submit application.');
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const handleClaimCreator = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = secretCode.trim();
-    if (!trimmed) {
-      error('Code Required', 'Please enter your creator access code.');
-      return;
-    }
-    setSecretSubmitting(true);
-    try {
-      const res = await claimCreator(trimmed);
-      if (res.success) {
-        success('Creator Access Granted', 'Your session has been elevated with Creator privileges.');
-        setSecretDialogOpen(false);
-        setSecretCode('');
-        navigate('/creator');
-      } else {
-        error('Elevation Failed', res.message || 'Incorrect authorization code.');
-      }
-    } catch (err: any) {
-      error('Elevation Error', err?.message || 'Verification service failed.');
-    } finally {
-      setSecretSubmitting(false);
     }
   };
 
@@ -338,48 +311,11 @@ export const LoginPage: React.FC = () => {
       </GlassCard>
 
       {/* Accessible Secret Creator Modal Dialog */}
-      <Modal
+      <CreatorLoginModal
         isOpen={secretDialogOpen}
         onClose={() => setSecretDialogOpen(false)}
-        title="Creator Verification"
-        description="Enter the master creator authorization code to elevate your account session."
-        maxWidth="sm"
-      >
-        <form onSubmit={handleClaimCreator} className="space-y-4">
-          <Input
-            label="Master Access Code"
-            type="password"
-            placeholder="••••••"
-            value={secretCode}
-            onChange={(e) => setSecretCode(e.target.value)}
-            required
-            autoFocus
-            leftIcon="solar:key-bold"
-          />
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setSecretDialogOpen(false);
-                setSecretCode('');
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              size="sm"
-              loading={secretSubmitting}
-              className="bg-amber-600 hover:bg-amber-500 text-white"
-            >
-              Verify Code
-            </Button>
-          </div>
-        </form>
-      </Modal>
+        onSuccess={() => navigate('/creator')}
+      />
     </div>
   );
 };

@@ -53,7 +53,7 @@ export function uploadFile(
       handlers?.onProgress?.(50);
 
       // Upload to Supabase
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from(BUCKET_NAME)
         .upload(cleanPath, file, {
           cacheControl: '3600',
