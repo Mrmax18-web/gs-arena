@@ -1,14 +1,8 @@
-import {
-  ref,
-  uploadBytesResumable,
-  getDownloadURL,
-  deleteObject,
-  UploadTask,
-} from 'firebase/storage';
-import { storage } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
 
 export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 export const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+const BUCKET_NAME = 'GS-ARENA';
 
 export interface FileValidationResult {
   valid: boolean;
@@ -43,62 +37,71 @@ export function uploadFile(
   storagePath: string,
   file: File,
   handlers?: UploadProgressHandler
-): { task: UploadTask; promise: Promise<string> } {
-  if (!storage) {
-    throw new Error('Firebase Storage is not initialized.');
-  }
+): { promise: Promise<string> } {
+  const promise = (async (): Promise<string> => {
+    const validation = validateImageFile(file);
+    if (!validation.valid) {
+      throw new Error(validation.error);
+    }
 
-  const validation = validateImageFile(file);
-  if (!validation.valid) {
-    throw new Error(validation.error);
-  }
+    try {
+      handlers?.onProgress?.(10);
 
-  const storageRef = ref(storage, storagePath);
-  const uploadTask = uploadBytesResumable(storageRef, file, {
-    contentType: file.type,
-    customMetadata: {
-      originalName: file.name,
-      uploadedAt: new Date().toISOString(),
-    },
-  });
+      // Clean the path (remove leading slash if present)
+      const cleanPath = storagePath.startsWith('/') ? storagePath.slice(1) : storagePath;
 
-  const promise = new Promise<string>((resolve, reject) => {
-    uploadTask.on(
-      'state_changed',
-      (snapshot) => {
-        const progress = Math.round(
-          (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-        );
-        handlers?.onProgress?.(progress);
-      },
-      (error) => {
-        handlers?.onError?.(error);
-        reject(error);
-      },
-      async () => {
-        try {
-          const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
-          handlers?.onSuccess?.(downloadUrl);
-          resolve(downloadUrl);
-        } catch (err: any) {
-          handlers?.onError?.(err);
-          reject(err);
-        }
-      }
-    );
-  });
+      handlers?.onProgress?.(50);
 
-  return { task: uploadTask, promise };
+      // Upload to Supabase
+      const { data, error } = await supabase.storage
+        .from(BUCKET_NAME)
+        .upload(cleanPath, file, {
+          cacheControl: '3600',
+          upsert: true, // Overwrite if file with same name exists
+          contentType: file.type,
+        });
+
+      if (error) throw error;
+
+      handlers?.onProgress?.(90);
+
+      // Get public URL
+      const { data: publicUrlData } = supabase.storage
+        .from(BUCKET_NAME)
+        .getPublicUrl(cleanPath);
+
+      handlers?.onProgress?.(100);
+      handlers?.onSuccess?.(publicUrlData.publicUrl);
+
+      return publicUrlData.publicUrl;
+    } catch (err: any) {
+      handlers?.onError?.(err);
+      throw err;
+    }
+  })();
+
+  return { promise };
 }
 
 export async function deleteStorageFile(storagePathOrUrl: string): Promise<void> {
-  if (!storage) return;
-
   try {
-    const fileRef = ref(storage, storagePathOrUrl);
-    await deleteObject(fileRef);
+    // If it's a full URL, extract just the file path part
+    let cleanPath = storagePathOrUrl;
+    if (cleanPath.includes(`${BUCKET_NAME}/`)) {
+      cleanPath = cleanPath.split(`${BUCKET_NAME}/`)[1];
+    }
+    
+    // Remove any URL query parameters
+    cleanPath = cleanPath.split('?')[0];
+
+    const { error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .remove([cleanPath]);
+
+    if (error) {
+      console.warn('Failed to delete Supabase storage file:', error);
+    }
   } catch (err) {
-    // If it's already gone or invalid url, don't throw blocking error
     console.warn('Failed to delete storage file:', err);
   }
 }
