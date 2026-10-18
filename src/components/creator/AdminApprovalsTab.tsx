@@ -5,7 +5,6 @@ import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useToast } from '../ui/Toast';
-import { callReviewAdminRequest } from '../../services/functionsClient';
 
 interface AdminApprovalsTabProps {
   requests: AdminRequest[];
@@ -32,19 +31,18 @@ export const AdminApprovalsTab: React.FC<AdminApprovalsTabProps> = ({
     if (!selectedReq) return;
     setSubmitting(true);
     try {
-      const res = await callReviewAdminRequest(selectedReq.uid, decision);
-      if (res.success) {
+      // Mock function replacement
+      setTimeout(() => {
         success(
           decision === 'approve' ? 'Admin Approved' : 'Admin Request Rejected',
-          `Successfully processed request for ${selectedReq.name}.`
+          `Successfully processed request for ${selectedReq.name}. (Mock)`
         );
         if (onRefresh) onRefresh();
-      } else {
-        error('Review Error', res.message || 'Operation failed.');
-      }
+        setSubmitting(false);
+        setConfirmOpen(false);
+      }, 800);
     } catch (err: any) {
       error('Review Error', err?.message || 'Failed to review request.');
-    } finally {
       setSubmitting(false);
       setConfirmOpen(false);
     }
@@ -88,7 +86,6 @@ export const AdminApprovalsTab: React.FC<AdminApprovalsTabProps> = ({
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
                 <span>Email: <strong className="text-slate-700 dark:text-slate-300 font-mono">{req.email}</strong></span>
                 <span>Contact: <strong className="text-slate-700 dark:text-slate-300">{req.contact}</strong></span>
-                <span>UID: <strong className="font-mono text-[10px] text-slate-400">{req.uid}</strong></span>
               </div>
 
               <p className="text-xs text-slate-600 dark:text-slate-300 bg-black/5 dark:bg-black/20 p-2.5 rounded-xl border border-black/5 dark:border-white/5 mt-2">
