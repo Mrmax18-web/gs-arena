@@ -30,6 +30,8 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           <input
             ref={ref}
             id={inputId}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? `${inputId}-error` : helperText ? `${inputId}-helper` : undefined}
             className={`w-full rounded-xl border bg-white/70 dark:bg-black/20 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 backdrop-blur-md transition-all duration-200 focus:border-brand-500 focus:bg-white dark:focus:bg-black/40 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-50 ${
               leftIcon ? 'pl-10' : ''
             } ${rightIcon ? 'pr-10' : ''} ${
@@ -46,12 +48,12 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           )}
         </div>
         {error ? (
-          <p className="flex items-center gap-1 text-xs text-rose-500">
+          <p id={`${inputId}-error`} role="alert" className="flex items-center gap-1 text-xs text-rose-500">
             <Icon icon="solar:danger-triangle-bold" className="shrink-0" />
             <span>{error}</span>
           </p>
         ) : helperText ? (
-          <p className="text-xs text-slate-500 dark:text-slate-400">{helperText}</p>
+          <p id={`${inputId}-helper`} className="text-xs text-slate-500 dark:text-slate-400">{helperText}</p>
         ) : null}
       </div>
     );

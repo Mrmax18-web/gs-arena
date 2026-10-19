@@ -23,14 +23,21 @@ export async function submitRegistration(
   const regCol = collection(db, 'registrations').withConverter(registrationConverter);
 
   // 1. Check for duplicate team name in this tournament
-  const nameQuery = query(
-    regCol,
-    where('tournamentId', '==', input.tournamentId),
-    where('teamName', '==', input.teamName.trim())
-  );
-  const nameSnap = await getDocs(nameQuery);
-  if (!nameSnap.empty) {
-    throw new Error(`A team named "${input.teamName}" has already registered for this tournament.`);
+  try {
+    const nameQuery = query(
+      regCol,
+      where('tournamentId', '==', input.tournamentId),
+      where('teamName', '==', input.teamName.trim())
+    );
+    const nameSnap = await getDocs(nameQuery);
+    if (!nameSnap.empty) {
+      throw new Error(`A team named "${input.teamName}" has already registered for this tournament.`);
+    }
+  } catch (err: any) {
+    if (err?.message?.includes('has already registered')) {
+      throw err;
+    }
+    console.warn('[Registration] Duplicate name check fallback:', err?.message);
   }
 
   const newDoc = doc(regCol);
@@ -65,7 +72,7 @@ export async function submitRegistration(
       approvalStatus: 'pending',
       paymentStatus: 'pending',
       otr: cleanOtr,
-      paymentScreenshotUrl: input.paymentScreenshotUrl,
+      paymentScreenshotUrl: input.paymentScreenshotUrl || '',
       teamLogoUrl: input.teamLogoUrl?.trim() || undefined,
       rulesVersion: RULES_VERSION,
       acceptedAt: now,

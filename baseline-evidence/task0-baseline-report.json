@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-10-19T07:01:16.266Z",
+  "failedRequests": [],
+  "consoleErrors": [],
+  "allConsoleLogsCount": 0,
+  "allNetworkRequestsCount": 66,
+  "recentNetworkLogs": [
+    {
+      "event": "request",
+      "url": "https://gs-arena.vercel.app/assets/storageService-C7FES1Ar.js",
+      "method": "GET",
+      "headers": {
+        "origin": "https://gs-arena.vercel.app",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "referer": "https://gs-arena.vercel.app/registration",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+        "sec-ch-ua": "\"Google Chrome\";v=\"155\", \"Chromium\";v=\"155\", \"Not(A:Brand\";v=\"24\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "postData": null,
+      "timestamp": "2026-10-19T07:01:12.577Z"
+    }
+  ]
+}

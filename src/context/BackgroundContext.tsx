@@ -32,6 +32,10 @@ export const BackgroundProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 ...prev,
                 ...data,
                 colors: data.colors?.length >= 2 ? data.colors : prev.colors,
+                advanced: {
+                  ...prev.advanced,
+                  ...(data.advanced || {}),
+                },
               }));
             }
           }
@@ -51,6 +55,10 @@ export const BackgroundProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       ...prev,
       ...partial,
       colors: partial.colors && partial.colors.length >= 2 ? partial.colors : prev.colors,
+      advanced: {
+        ...prev.advanced,
+        ...(partial.advanced || {}),
+      },
     }));
   };
 

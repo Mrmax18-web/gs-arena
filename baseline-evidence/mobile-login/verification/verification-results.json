@@ -1,0 +1,125 @@
+{
+  "timestamp": "2026-10-19T12:34:01.429Z",
+  "viewports": {
+    "411x568": {
+      "canvasStatus": {
+        "found": true,
+        "pointerEvents": "none",
+        "position": "absolute",
+        "zIndex": "auto"
+      },
+      "emailVal": "test@example.com",
+      "passVal": "SecretPass123!",
+      "submitTarget": {
+        "found": true,
+        "height": 44,
+        "width": 337,
+        "type": "submit",
+        "disabled": false,
+        "isAtLeast44px": true
+      },
+      "overflowMetrics": {
+        "scrollWidth": 411,
+        "clientWidth": 411,
+        "hasHorizontalOverflow": false
+      },
+      "keyboardMetrics": {
+        "found": true,
+        "inView": true,
+        "top": 166,
+        "bottom": 210,
+        "windowHeight": 320
+      }
+    },
+    "283x568": {
+      "canvasStatus": {
+        "found": true,
+        "pointerEvents": "none",
+        "position": "absolute",
+        "zIndex": "auto"
+      },
+      "emailVal": "test@example.com",
+      "passVal": "SecretPass123!",
+      "submitTarget": {
+        "found": true,
+        "height": 44,
+        "width": 209,
+        "type": "submit",
+        "disabled": false,
+        "isAtLeast44px": true
+      },
+      "overflowMetrics": {
+        "scrollWidth": 283,
+        "clientWidth": 283,
+        "hasHorizontalOverflow": false
+      },
+      "keyboardMetrics": {
+        "found": true,
+        "inView": true,
+        "top": 166,
+        "bottom": 210,
+        "windowHeight": 320
+      }
+    },
+    "375x667": {
+      "canvasStatus": {
+        "found": true,
+        "pointerEvents": "none",
+        "position": "absolute",
+        "zIndex": "auto"
+      },
+      "emailVal": "test@example.com",
+      "passVal": "SecretPass123!",
+      "submitTarget": {
+        "found": true,
+        "height": 44,
+        "width": 301,
+        "type": "submit",
+        "disabled": false,
+        "isAtLeast44px": true
+      },
+      "overflowMetrics": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "hasHorizontalOverflow": false
+      },
+      "keyboardMetrics": {
+        "found": true,
+        "inView": true,
+        "top": 166,
+        "bottom": 210,
+        "windowHeight": 320
+      }
+    },
+    "390x844": {
+      "canvasStatus": {
+        "found": true,
+        "pointerEvents": "none",
+        "position": "absolute",
+        "zIndex": "auto"
+      },
+      "emailVal": "test@example.com",
+      "passVal": "SecretPass123!",
+      "submitTarget": {
+        "found": true,
+        "height": 44,
+        "width": 316,
+        "type": "submit",
+        "disabled": false,
+        "isAtLeast44px": true
+      },
+      "overflowMetrics": {
+        "scrollWidth": 390,
+        "clientWidth": 390,
+        "hasHorizontalOverflow": false
+      },
+      "keyboardMetrics": {
+        "found": true,
+        "inView": true,
+        "top": 166,
+        "bottom": 210,
+        "windowHeight": 320
+      }
+    }
+  }
+}

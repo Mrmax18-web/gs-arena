@@ -5,6 +5,7 @@ import { Input } from '../ui/Input';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useToast } from '../ui/Toast';
 import { getMatchSecrets, saveMatchSecrets } from '../../services/tournamentService';
+import { callSendRoomCredentials } from '../../services/functionsClient';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Icon } from '@iconify/react';
@@ -42,6 +43,7 @@ export const RoomCredentialsForm: React.FC<RoomCredentialsFormProps> = ({
           setCredentialsSentAt(secrets.credentialsSentAt || null);
         }
 
+        // Fetch approved registrations count
         if (db) {
           const regQ = query(
             collection(db, 'registrations'),
@@ -87,18 +89,31 @@ export const RoomCredentialsForm: React.FC<RoomCredentialsFormProps> = ({
   const handleSendCredentials = async () => {
     setSending(true);
     try {
-      // Mock Supabase function replacement
-      setTimeout(() => {
+      const res = await callSendRoomCredentials(tournamentId, matchId);
+
+      if (res.status === 'not_configured') {
         info(
-          'Email Feature Moving',
-          'Email dispatch has been moved to Supabase. Please send credentials manually for now.'
+          'Email Provider Not Configured',
+          'SMTP credentials are not set on Cloud Functions. Configure SMTP_HOST/USER/PASS secrets to deliver emails.'
+        );
+      } else if (res.status === 'sent') {
+        success(
+          'Credentials Dispatched',
+          `Successfully delivered credentials to ${res.successCount ?? recipientCount} team leaders.`
         );
         setCredentialsSentAt(new Date().toISOString());
-        setSending(false);
-        setConfirmOpen(false);
-      }, 1000);
+      } else if (res.status === 'partial') {
+        info(
+          'Partial Delivery',
+          `Sent to ${res.successCount} leaders, ${res.failedCount} deliveries failed.`
+        );
+        setCredentialsSentAt(new Date().toISOString());
+      } else {
+        error('Dispatch Failed', res.message || 'Could not send room credentials.');
+      }
     } catch (err: any) {
       error('Dispatch Error', err?.message || 'Error executing credential dispatch function.');
+    } finally {
       setSending(false);
       setConfirmOpen(false);
     }

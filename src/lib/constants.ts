@@ -55,15 +55,23 @@ export const CANONICAL_GAMES: Record<GameId, GameConfig> = {
 export const DEFAULT_BACKGROUND_CONFIG: BackgroundConfig = {
   enabled: true,
   background: '#000000',
-  baseColor: '#FFED33',
-  accentColor: '#EAD64F',
+  baseColor: '#DE0202',
+  accentColor: '#D10000',
   speed: 11,
   scale: 96,
   hover: 98,
   colorSplit: 22,
   ribbonGrain: 0.1,
-  colors: ['#FFED33', '#EAD64F'],
+  colors: ['#DE0202', '#D10000'],
   opacity: 1.0,
+  advanced: {
+    goldColor: '#FF0000',
+    highColor: '#CF2A2A',
+    blueDeep: '#E42222',
+    blueHigh: '#A50B0B',
+    paleColor: '#F8F4EA',
+    coolTint: '#DCE6F5',
+  },
 };
 
 export const DEFAULT_SYSTEM_CONFIG: SystemConfig = {

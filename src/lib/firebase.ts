@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, Auth } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator, Firestore } from 'firebase/firestore';
+import { initializeFirestore, getFirestore, connectFirestoreEmulator, Firestore } from 'firebase/firestore';
 import { getFunctions, connectFunctionsEmulator, Functions } from 'firebase/functions';
 import { getStorage, connectStorageEmulator, FirebaseStorage } from 'firebase/storage';
 
@@ -31,7 +31,13 @@ let storage: FirebaseStorage | null = null;
 if (isFirebaseConfigured()) {
   app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
   auth = getAuth(app);
-  db = getFirestore(app);
+  try {
+    db = initializeFirestore(app, {
+      experimentalAutoDetectLongPolling: true,
+    });
+  } catch {
+    db = getFirestore(app);
+  }
   functions = getFunctions(app);
   storage = getStorage(app);
 

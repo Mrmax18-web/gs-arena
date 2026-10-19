@@ -1,0 +1,185 @@
+{
+  "timestamp": "2026-10-19T11:52:34.138Z",
+  "viewports": {
+    "411x568": {
+      "hitTestResults": {
+        "email": {
+          "found": false,
+          "name": "Email Input"
+        },
+        "password": {
+          "found": false,
+          "name": "Password Input"
+        },
+        "submit": {
+          "found": false,
+          "name": "Submit Button"
+        },
+        "form": {
+          "found": false,
+          "containsEmail": false,
+          "containsPassword": false,
+          "containsSubmit": false
+        },
+        "ancestorOverflows": []
+      },
+      "canTapEmail": false,
+      "canTapPassword": false,
+      "canTapSubmit": false,
+      "scrollMetrics": {
+        "foundSubmit": false
+      }
+    },
+    "283x568": {
+      "hitTestResults": {
+        "email": {
+          "found": false,
+          "name": "Email Input"
+        },
+        "password": {
+          "found": false,
+          "name": "Password Input"
+        },
+        "submit": {
+          "found": false,
+          "name": "Submit Button"
+        },
+        "form": {
+          "found": false,
+          "containsEmail": false,
+          "containsPassword": false,
+          "containsSubmit": false
+        },
+        "ancestorOverflows": []
+      },
+      "canTapEmail": false,
+      "canTapPassword": false,
+      "canTapSubmit": false,
+      "scrollMetrics": {
+        "foundSubmit": false
+      }
+    },
+    "375x667": {
+      "hitTestResults": {
+        "email": {
+          "found": false,
+          "name": "Email Input"
+        },
+        "password": {
+          "found": false,
+          "name": "Password Input"
+        },
+        "submit": {
+          "found": false,
+          "name": "Submit Button"
+        },
+        "form": {
+          "found": false,
+          "containsEmail": false,
+          "containsPassword": false,
+          "containsSubmit": false
+        },
+        "ancestorOverflows": []
+      },
+      "canTapEmail": false,
+      "canTapPassword": false,
+      "canTapSubmit": false,
+      "scrollMetrics": {
+        "foundSubmit": false
+      }
+    },
+    "390x844": {
+      "hitTestResults": {
+        "email": {
+          "found": false,
+          "name": "Email Input"
+        },
+        "password": {
+          "found": false,
+          "name": "Password Input"
+        },
+        "submit": {
+          "found": false,
+          "name": "Submit Button"
+        },
+        "form": {
+          "found": false,
+          "containsEmail": false,
+          "containsPassword": false,
+          "containsSubmit": false
+        },
+        "ancestorOverflows": []
+      },
+      "canTapEmail": false,
+      "canTapPassword": false,
+      "canTapSubmit": false,
+      "scrollMetrics": {
+        "foundSubmit": false
+      }
+    }
+  },
+  "consoleErrors": [
+    {
+      "viewport": "411x568",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 ()",
+      "location": {
+        "url": "https://gs-arena.vercel.app/login",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "viewport": "411x568",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 ()",
+      "location": {
+        "url": "https://gs-arena.vercel.app/favicon.ico",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "viewport": "283x568",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 ()",
+      "location": {
+        "url": "https://gs-arena.vercel.app/login",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "viewport": "375x667",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 ()",
+      "location": {
+        "url": "https://gs-arena.vercel.app/login",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 ()",
+      "location": {
+        "url": "https://gs-arena.vercel.app/login",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    }
+  ],
+  "transportErrors": [],
+  "networkFailures": []
+}

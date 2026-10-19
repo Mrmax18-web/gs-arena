@@ -9,6 +9,7 @@ import { SIDEBAR_STORAGE_KEY } from '../../lib/constants';
 import { isAdmin, isCreator } from '../../lib/permissions';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { GameId } from '../../types/game';
+import { useAppearance } from '../../hooks/useAppearance';
 
 interface NavItemConfig {
   to: string;
@@ -226,6 +227,14 @@ export const Sidebar: React.FC<{ mobileOpen: boolean; setMobileOpen: (open: bool
     </NavLink>
   );
 
+  const { appearance } = useAppearance();
+  const [logoError, setLogoError] = useState(false);
+
+  // Reset logoError if arenaLogoUrl changes
+  useEffect(() => {
+    setLogoError(false);
+  }, [appearance.arenaLogoUrl]);
+
   const sidebarContent = (
     <div className="flex h-full flex-col justify-between p-3 select-none">
       {/* Top Header & Brand */}
@@ -235,9 +244,18 @@ export const Sidebar: React.FC<{ mobileOpen: boolean; setMobileOpen: (open: bool
             onClick={() => navigate('/')}
             className="flex items-center gap-2.5 cursor-pointer overflow-hidden"
           >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-red-600 to-red-700 text-white shadow-md shadow-red-600/20">
-              <Icon icon="solar:cup-star-bold" className="text-xl" />
-            </div>
+            {appearance.arenaLogoUrl && !logoError ? (
+              <img
+                src={appearance.arenaLogoUrl}
+                alt={appearance.siteName || 'GS Arena'}
+                onError={() => setLogoError(true)}
+                className="h-9 w-9 shrink-0 object-contain rounded-xl shadow-md"
+              />
+            ) : (
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-red-600 to-red-700 text-white shadow-md shadow-red-600/20">
+                <Icon icon="solar:cup-star-bold" className="text-xl" />
+              </div>
+            )}
             {(!collapsed || mobileOpen) && (
               <motion.div
                 initial={{ opacity: 0, x: -10 }}
@@ -246,7 +264,11 @@ export const Sidebar: React.FC<{ mobileOpen: boolean; setMobileOpen: (open: bool
                 className="whitespace-nowrap"
               >
                 <span className="font-extrabold text-sm tracking-tight text-slate-900 dark:text-white">
-                  GS <span className="text-brand-500">ARENA</span>
+                  {appearance.siteName || (
+                    <>
+                      GS <span className="text-brand-500">ARENA</span>
+                    </>
+                  )}
                 </span>
                 <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold leading-none">
                   Esports Platform

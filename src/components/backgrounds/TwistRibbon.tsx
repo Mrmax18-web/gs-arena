@@ -95,10 +95,10 @@ const ADVANCED_DEFAULTS = {
   grainPx: 1,
   cool: 80,
   coolEnd: 1,
-  goldColor: '#E3BD78',
-  highColor: '#FBF5E4',
-  blueDeep: '#3F7DE6',
-  blueHigh: '#5A95F0',
+  goldColor: '#FF0000',
+  highColor: '#CF2A2A',
+  blueDeep: '#E42222',
+  blueHigh: '#A50B0B',
   paleColor: '#F8F4EA',
   coolTint: '#DCE6F5',
   vignette: 0,
@@ -351,8 +351,8 @@ void main() {
 function __OriginkitBase_DriftingLeftSmooth(props: Props) {
   const {
     background = '#000000',
-    baseColor = '#F4E3B0',
-    accentColor = '#4F8BEA',
+    baseColor = '#DE0202',
+    accentColor = '#D10000',
     speed = 50,
     scale = 163,
     hover = 200,
@@ -489,23 +489,29 @@ function __OriginkitBase_DriftingLeftSmooth(props: Props) {
   return (
     <div
       ref={rootRef}
+      aria-hidden="true"
+      className="pointer-events-none"
       style={{
         position: 'relative',
         minWidth: 1200,
         minHeight: 800,
         overflow: 'hidden',
         background,
+        pointerEvents: 'none',
         ...style,
       }}
     >
       <canvas
         ref={canvasRef}
+        aria-hidden="true"
+        className="pointer-events-none"
         style={{
           position: 'absolute',
           inset: 0,
           width: '100%',
           height: '100%',
           display: 'block',
+          pointerEvents: 'none',
         }}
       />
     </div>
@@ -526,9 +532,9 @@ const __originkitPresetProps = {
     breathe: 0,
     coolEnd: 1,
     grainPx: 1,
-    blueDeep: '#3F7DE6',
+    blueDeep: '#E42222',
     blueGlow: 35,
-    blueHigh: '#5A95F0',
+    blueHigh: '#A50B0B',
     blueSide: 0,
     blueSpan: 15,
     coolTint: '#DCE6F5',
@@ -537,9 +543,9 @@ const __originkitPresetProps = {
     topLight: 200,
     vignette: 0,
     boxHeight: 110,
-    goldColor: '#E3BD78',
+    goldColor: '#FF0000',
     halfWidth: 50,
-    highColor: '#FBF5E4',
+    highColor: '#CF2A2A',
     paleColor: '#F8F4EA',
     positionY: 50,
     twistRate: 300,
@@ -552,10 +558,15 @@ const __originkitPresetProps = {
 };
 
 export default function DriftingLeftSmooth(props: Record<string, unknown>) {
+  const mergedAdvanced = {
+    ...__originkitPresetProps.advanced,
+    ...((props.advanced as Record<string, unknown>) || {}),
+  };
   return (
     <__OriginkitBase_DriftingLeftSmooth
       {...(__originkitPresetProps as Record<string, unknown>)}
       {...props}
+      advanced={mergedAdvanced}
     />
   );
 }
@@ -576,20 +587,23 @@ export const TwistRibbon: React.FC = () => {
   }
 
   const overrides: Record<string, unknown> = {};
-  if (config.baseColor) overrides.baseColor = config.baseColor;
-  else if (config.colors?.[0]) overrides.baseColor = config.colors[0];
-
-  if (config.accentColor) overrides.accentColor = config.accentColor;
-  else if (config.colors?.[1]) overrides.accentColor = config.colors[1];
+  overrides.background = config.background || '#000000';
+  overrides.baseColor = config.baseColor || config.colors?.[0] || '#DE0202';
+  overrides.accentColor = config.accentColor || config.colors?.[1] || '#D10000';
 
   if (typeof config.speed === 'number') overrides.speed = config.speed;
   if (typeof config.scale === 'number') overrides.scale = config.scale;
   if (typeof config.hover === 'number') overrides.hover = config.hover;
   if (typeof config.colorSplit === 'number') overrides.colorSplit = config.colorSplit;
+  if (typeof config.ribbonGrain === 'number') overrides.ribbonGrain = config.ribbonGrain;
+
+  overrides.advanced = {
+    ...ADVANCED_DEFAULTS,
+    ...(config.advanced || {}),
+  };
 
   return (
     <DriftingLeftSmooth
-      background="#000000"
       {...overrides}
       style={{
         position: 'fixed',

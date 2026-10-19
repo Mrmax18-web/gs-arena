@@ -17,10 +17,15 @@ export interface UseFirestoreCollectionResult<T> {
   refetch: () => void;
 }
 
+export interface UseFirestoreCollectionOptions {
+  enabled?: boolean;
+}
+
 export function useFirestoreCollection<T>(
   collectionPath: string,
   constraints: QueryConstraint[] = [],
-  converter?: FirestoreDataConverter<T>
+  converter?: FirestoreDataConverter<T>,
+  options?: UseFirestoreCollectionOptions
 ): UseFirestoreCollectionResult<T> {
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -29,8 +34,10 @@ export function useFirestoreCollection<T>(
 
   const refetch = () => setTick((t) => t + 1);
 
+  const enabled = options?.enabled ?? true;
+
   useEffect(() => {
-    if (!collectionPath || !isFirebaseConfigured() || !db) {
+    if (!enabled || !collectionPath || !isFirebaseConfigured() || !db) {
       setLoading(false);
       setData([]);
       return;
@@ -69,7 +76,7 @@ export function useFirestoreCollection<T>(
       setError(err instanceof Error ? err : new Error(String(err)));
       setLoading(false);
     }
-  }, [collectionPath, JSON.stringify(constraints.map((c) => c.type)), tick]);
+  }, [collectionPath, JSON.stringify(constraints.map((c) => c.type)), tick, enabled]);
 
   return { data, loading, error, refetch };
 }

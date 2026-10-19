@@ -67,6 +67,8 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             return (
               <motion.div
                 key={t.id}
+                role={t.type === 'error' ? 'alert' : 'status'}
+                aria-live={t.type === 'error' ? 'assertive' : 'polite'}
                 initial={{ opacity: 0, y: 20, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 20, scale: 0.95 }}

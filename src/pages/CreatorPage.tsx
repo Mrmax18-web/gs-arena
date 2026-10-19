@@ -36,6 +36,7 @@ export const CreatorPage: React.FC = () => {
   );
 
   // Admin requests
+  const isCreatorUser = Boolean(user && isCreator(role));
   const adminReqConstraints = [where('status', '==', 'pending')];
   const {
     data: adminRequests,
@@ -43,7 +44,8 @@ export const CreatorPage: React.FC = () => {
   } = useFirestoreCollection<AdminRequest>(
     'adminRequests',
     adminReqConstraints,
-    adminRequestConverter
+    adminRequestConverter,
+    { enabled: isCreatorUser }
   );
 
   const handleUnlockCreator = async (e: React.FormEvent) => {

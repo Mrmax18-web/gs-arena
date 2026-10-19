@@ -7,6 +7,7 @@ import { Tournament } from '../types/tournament';
 import { RegistrationForm } from '../components/registration/RegistrationForm';
 import { Skeleton } from '../components/ui/Skeleton';
 import { ErrorState } from '../components/ui/ErrorState';
+import { ErrorBoundary } from '../components/layout/ErrorBoundary';
 import { where } from 'firebase/firestore';
 
 export const RegistrationPage: React.FC = () => {
@@ -46,7 +47,9 @@ export const RegistrationPage: React.FC = () => {
           onRetry={refetch}
         />
       ) : (
-        <RegistrationForm tournaments={tournaments} defaultTournamentId={tParam} />
+        <ErrorBoundary fallbackTitle="Registration Form Unavailable">
+          <RegistrationForm tournaments={tournaments} defaultTournamentId={tParam} />
+        </ErrorBoundary>
       )}
     </div>
   );

@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import {
+  sanitizeInputString,
+  containsProfanity,
+  containsScriptTag,
+} from './moderation';
 
 export const OTR_REGEX = /^[A-Z0-9_-]{6,40}$/;
 
@@ -6,16 +11,42 @@ export const RegistrationSchema = z.object({
   tournamentId: z.string().min(1, 'Please select a tournament'),
   teamName: z
     .string()
-    .min(2, 'Team name must be at least 2 characters')
-    .max(40, 'Team name cannot exceed 40 characters')
-    .trim(),
+    .transform(sanitizeInputString)
+    .pipe(
+      z
+        .string()
+        .min(2, 'Team name must be at least 2 characters')
+        .max(40, 'Team name cannot exceed 40 characters')
+        .refine((v) => !containsScriptTag(v), {
+          message: 'Team name cannot contain script tags or markup',
+        })
+        .refine((v) => !containsProfanity(v), {
+          message: 'Team name contains prohibited or abusive language',
+        })
+    ),
   leaderEmail: z
     .string()
     .email('Please enter a valid email address')
     .max(100, 'Email cannot exceed 100 characters')
     .trim(),
   players: z
-    .array(z.string().min(2, 'Player name/ID must be at least 2 characters').max(30, 'Player name/ID cannot exceed 30 characters').trim())
+    .array(
+      z
+        .string()
+        .transform(sanitizeInputString)
+        .pipe(
+          z
+            .string()
+            .min(2, 'Player name/ID must be at least 2 characters')
+            .max(30, 'Player name/ID cannot exceed 30 characters')
+            .refine((v) => !containsScriptTag(v), {
+              message: 'Player ID cannot contain script tags or markup',
+            })
+            .refine((v) => !containsProfanity(v), {
+              message: 'Player ID contains prohibited or abusive language',
+            })
+        )
+    )
     .length(4, 'Registration requires exactly 4 player IDs')
     .refine((items) => {
       const lower = items.map((i) => i.toLowerCase());
@@ -23,7 +54,7 @@ export const RegistrationSchema = z.object({
     }, { message: 'Player IDs must be unique within the team' }),
   otr: z
     .string()
-    .trim()
+    .transform(sanitizeInputString)
     .transform((val) => val.toUpperCase())
     .refine((val) => OTR_REGEX.test(val), {
       message: 'OTR (Order/Transaction Reference) must be 6-40 characters (letters, numbers, hyphens, underscores)',
@@ -45,6 +76,22 @@ export const RegistrationSchema = z.object({
 export type RegistrationFormInput = z.infer<typeof RegistrationSchema>;
 
 export const AppearanceSchema = z.object({
+  siteName: z
+    .string()
+    .transform(sanitizeInputString)
+    .pipe(
+      z
+        .string()
+        .max(50, 'Site name cannot exceed 50 characters')
+        .refine((v) => !containsScriptTag(v), {
+          message: 'Site name cannot contain script tags or markup',
+        })
+        .refine((v) => !containsProfanity(v), {
+          message: 'Site name contains prohibited or abusive language',
+        })
+    )
+    .optional()
+    .or(z.literal('')),
   bgmiIconUrl: z
     .string()
     .max(1000, 'URL too long')

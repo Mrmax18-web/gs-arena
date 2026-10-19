@@ -5,7 +5,7 @@ import {
 } from 'firebase/firestore';
 import { Tournament, Match, Team } from '../types/tournament';
 import { Registration } from '../types/registration';
-import { SystemConfig, BackgroundConfig } from '../types/config';
+import { SystemConfig, BackgroundConfig, AppearanceConfig } from '../types/config';
 import { GameConfig } from '../types/game';
 import { AdminRequest } from '../types/auth';
 import { DEFAULT_BACKGROUND_CONFIG, DEFAULT_SYSTEM_CONFIG, DEFAULT_MVP_WEIGHTS } from './constants';
@@ -292,6 +292,30 @@ export const systemConfigConverter: FirestoreDataConverter<SystemConfig> = {
   },
 };
 
+export const appearanceConfigConverter: FirestoreDataConverter<AppearanceConfig> = {
+  toFirestore(cfg: AppearanceConfig) {
+    return {
+      bgmiIconUrl: cfg.bgmiIconUrl ?? '',
+      ffIconUrl: cfg.ffIconUrl ?? '',
+      arenaLogoUrl: cfg.arenaLogoUrl ?? '',
+      siteName: cfg.siteName ?? 'GS Arena',
+      updatedAt: cfg.updatedAt ?? new Date().toISOString(),
+      updatedBy: cfg.updatedBy ?? null,
+    };
+  },
+  fromFirestore(snapshot: QueryDocumentSnapshot, options?: SnapshotOptions): AppearanceConfig {
+    const data = snapshot.data(options);
+    return {
+      bgmiIconUrl: data?.bgmiIconUrl ?? '',
+      ffIconUrl: data?.ffIconUrl ?? '',
+      arenaLogoUrl: data?.arenaLogoUrl ?? '',
+      siteName: data?.siteName ?? 'GS Arena',
+      updatedAt: data?.updatedAt ?? '',
+      updatedBy: data?.updatedBy ?? undefined,
+    };
+  },
+};
+
 export const backgroundConfigConverter: FirestoreDataConverter<BackgroundConfig> = {
   toFirestore(cfg: BackgroundConfig) {
     return {
@@ -308,6 +332,10 @@ export const backgroundConfigConverter: FirestoreDataConverter<BackgroundConfig>
       density: cfg.density ?? DEFAULT_BACKGROUND_CONFIG.density,
       angle: cfg.angle ?? DEFAULT_BACKGROUND_CONFIG.angle,
       opacity: cfg.opacity ?? DEFAULT_BACKGROUND_CONFIG.opacity,
+      advanced: {
+        ...(DEFAULT_BACKGROUND_CONFIG.advanced || {}),
+        ...(cfg.advanced || {}),
+      },
     };
   },
   fromFirestore(snapshot: QueryDocumentSnapshot, options?: SnapshotOptions): BackgroundConfig {
@@ -326,6 +354,10 @@ export const backgroundConfigConverter: FirestoreDataConverter<BackgroundConfig>
       density: typeof data?.density === 'number' ? data.density : DEFAULT_BACKGROUND_CONFIG.density,
       angle: typeof data?.angle === 'number' ? data.angle : DEFAULT_BACKGROUND_CONFIG.angle,
       opacity: typeof data?.opacity === 'number' ? data.opacity : DEFAULT_BACKGROUND_CONFIG.opacity,
+      advanced: {
+        ...(DEFAULT_BACKGROUND_CONFIG.advanced || {}),
+        ...(data?.advanced || {}),
+      },
     };
   },
 };

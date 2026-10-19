@@ -1,15 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AppearanceConfig, SystemConfig } from '../../types/config';
 import { Tournament } from '../../types/tournament';
 import { GlassCard } from '../ui/GlassCard';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { useToast } from '../ui/Toast';
-import { saveSystemConfig } from '../../services/configService';
+import { saveAppearanceConfig } from '../../services/configService';
+import { uploadStorageFile } from '../../services/storageService';
 import { AppearanceSchema } from '../../lib/validators';
 import { useFirestoreCollection } from '../../hooks/useFirestoreCollection';
 import { tournamentConverter } from '../../lib/converters';
 import { Icon } from '@iconify/react';
+import { useAppearance } from '../../hooks/useAppearance';
 
 interface AppearanceTabProps {
   systemConfig?: SystemConfig;
@@ -18,11 +20,12 @@ interface AppearanceTabProps {
 
 export const AppearanceTab: React.FC<AppearanceTabProps> = ({ systemConfig, onSaved }) => {
   const { success, error } = useToast();
+  const { appearance: liveAppearance } = useAppearance();
 
-  const initialAppearance = systemConfig?.appearance || {};
-  const [bgmiIconUrl, setBgmiIconUrl] = useState(initialAppearance.bgmiIconUrl || '');
-  const [ffIconUrl, setFfIconUrl] = useState(initialAppearance.ffIconUrl || '');
-  const [arenaLogoUrl, setArenaLogoUrl] = useState(initialAppearance.arenaLogoUrl || '');
+  const [siteName, setSiteName] = useState('');
+  const [bgmiIconUrl, setBgmiIconUrl] = useState('');
+  const [ffIconUrl, setFfIconUrl] = useState('');
+  const [arenaLogoUrl, setArenaLogoUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -31,6 +34,23 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = ({ systemConfig, onSa
   const [ffError, setFfError] = useState(false);
   const [logoError, setLogoError] = useState(false);
 
+  // Uploading state
+  const [uploadingTarget, setUploadingTarget] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const logoFileRef = useRef<HTMLInputElement>(null);
+  const bgmiFileRef = useRef<HTMLInputElement>(null);
+  const ffFileRef = useRef<HTMLInputElement>(null);
+
+  // Sync initial state from live appearance or systemConfig
+  useEffect(() => {
+    const src = liveAppearance.arenaLogoUrl ? liveAppearance : (systemConfig?.appearance || {});
+    setSiteName(src.siteName || systemConfig?.siteName || 'GS Arena');
+    setArenaLogoUrl(src.arenaLogoUrl || '');
+    setBgmiIconUrl(src.bgmiIconUrl || '');
+    setFfIconUrl(src.ffIconUrl || '');
+  }, [liveAppearance, systemConfig]);
+
   // Load tournaments for read-only UPI / fee inspection
   const { data: tournaments } = useFirestoreCollection<Tournament>(
     'tournaments',
@@ -38,11 +58,62 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = ({ systemConfig, onSa
     tournamentConverter
   );
 
+  const handleFileUpload = async (
+    file: File,
+    field: 'arenaLogoUrl' | 'bgmiIconUrl' | 'ffIconUrl'
+  ) => {
+    const allowed = ['image/png', 'image/jpeg', 'image/webp'];
+    if (!allowed.includes(file.type)) {
+      const msg = `Unsupported file type: ${file.type}. Allowed: PNG, JPEG, WebP.`;
+      error('Upload Failed', msg);
+      setFieldErrors((prev) => ({ ...prev, [field]: msg }));
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      const msg = `File is too large (${(file.size / (1024 * 1024)).toFixed(1)}MB). Limit is 5MB.`;
+      error('Upload Failed', msg);
+      setFieldErrors((prev) => ({ ...prev, [field]: msg }));
+      return;
+    }
+
+    setUploadingTarget(field);
+    setUploadProgress(0);
+    setFieldErrors((prev) => ({ ...prev, [field]: '' }));
+
+    try {
+      const publicUrl = await uploadStorageFile(file, 'logos', (pct) => {
+        setUploadProgress(pct);
+      });
+
+      if (field === 'arenaLogoUrl') {
+        setArenaLogoUrl(publicUrl);
+        setLogoError(false);
+      } else if (field === 'bgmiIconUrl') {
+        setBgmiIconUrl(publicUrl);
+        setBgmiError(false);
+      } else if (field === 'ffIconUrl') {
+        setFfIconUrl(publicUrl);
+        setFfError(false);
+      }
+
+      success('File Uploaded', `${file.name} uploaded successfully. Click Save to persist.`);
+    } catch (err: any) {
+      const msg = err?.message || 'File upload to Supabase failed';
+      error('Upload Failed', msg);
+      setFieldErrors((prev) => ({ ...prev, [field]: msg }));
+    } finally {
+      setUploadingTarget(null);
+      setUploadProgress(0);
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setFieldErrors({});
 
     const dataToValidate = {
+      siteName: siteName.trim(),
       bgmiIconUrl: bgmiIconUrl.trim(),
       ffIconUrl: ffIconUrl.trim(),
       arenaLogoUrl: arenaLogoUrl.trim(),
@@ -56,24 +127,23 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = ({ systemConfig, onSa
         errMap[path] = err.message;
       }
       setFieldErrors(errMap);
-      error('Validation Failed', parseResult.error.errors[0]?.message || 'Please fix URL errors.');
+      error('Validation Failed', parseResult.error.errors[0]?.message || 'Please fix errors before saving.');
       return;
     }
 
     setSaving(true);
     try {
       const newAppearance: AppearanceConfig = {
+        siteName: siteName.trim(),
         bgmiIconUrl: bgmiIconUrl.trim(),
         ffIconUrl: ffIconUrl.trim(),
         arenaLogoUrl: arenaLogoUrl.trim(),
         updatedAt: new Date().toISOString(),
       };
 
-      await saveSystemConfig({
-        appearance: newAppearance,
-      });
+      await saveAppearanceConfig(newAppearance);
 
-      success('Appearance Saved', 'Game icons and logo updated across GS Arena.');
+      success('Appearance Saved', 'Brand logo, name, and game icons updated app-wide.');
       if (onSaved) onSaved();
     } catch (err: any) {
       error('Save Failed', err?.message || 'Failed to update appearance.');
@@ -83,6 +153,7 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = ({ systemConfig, onSa
   };
 
   const handleClear = () => {
+    setSiteName('GS Arena');
     setBgmiIconUrl('');
     setFfIconUrl('');
     setArenaLogoUrl('');
@@ -103,7 +174,7 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = ({ systemConfig, onSa
                 Custom Game Icons & Brand Appearance
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Configure HTTPS image assets for game titles and GS Arena branding. GameSelectPage renders these icons with instant fallback.
+                Configure brand logo, site name, and game icons. Upload to Supabase Storage or specify HTTPS URLs. Header and Sidebar sync live via onSnapshot.
               </p>
             </div>
             <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20">
@@ -113,22 +184,73 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = ({ systemConfig, onSa
         </div>
 
         <form onSubmit={handleSave} className="space-y-6">
+          {/* Site Name Field */}
+          <div className="p-4 rounded-xl border border-slate-200 dark:border-white/10 bg-black/5 dark:bg-black/20 space-y-2">
+            <label htmlFor="site-name-input" className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider block">
+              Site Brand Title / Name
+            </label>
+            <Input
+              id="site-name-input"
+              placeholder="GS Arena"
+              value={siteName}
+              onChange={(e) => setSiteName(e.target.value)}
+              error={fieldErrors['siteName']}
+              helperText="Displayed in the top mobile header and desktop sidebar"
+            />
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* GS Arena Logo */}
             <div className="space-y-3 p-4 rounded-xl border border-slate-200 dark:border-white/10 bg-black/5 dark:bg-black/20">
-              <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider block">
-                GS Arena Brand Logo
-              </span>
-              <Input
-                placeholder="https://.../arena-logo.png"
-                value={arenaLogoUrl}
-                onChange={(e) => {
-                  setArenaLogoUrl(e.target.value);
-                  setLogoError(false);
-                }}
-                error={fieldErrors['arenaLogoUrl']}
-                helperText="Must be a valid HTTPS image URL"
-              />
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                  GS Arena Brand Logo
+                </span>
+                {uploadingTarget === 'arenaLogoUrl' && (
+                  <span className="text-[10px] text-brand-500 font-bold animate-pulse">
+                    Uploading {uploadProgress}%
+                  </span>
+                )}
+              </div>
+
+              {/* Upload file button */}
+              <div>
+                <input
+                  type="file"
+                  ref={logoFileRef}
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload(file, 'arenaLogoUrl');
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="glass"
+                  size="sm"
+                  className="w-full text-xs flex items-center justify-center gap-1.5"
+                  loading={uploadingTarget === 'arenaLogoUrl'}
+                  onClick={() => logoFileRef.current?.click()}
+                  icon="solar:upload-minimal-linear"
+                >
+                  Upload Logo File
+                </Button>
+              </div>
+
+              <div className="relative">
+                <Input
+                  placeholder="https://.../arena-logo.png"
+                  value={arenaLogoUrl}
+                  onChange={(e) => {
+                    setArenaLogoUrl(e.target.value);
+                    setLogoError(false);
+                  }}
+                  error={fieldErrors['arenaLogoUrl']}
+                  helperText="Upload image or paste direct HTTPS image URL"
+                />
+              </div>
+
               <div className="h-24 rounded-lg bg-black/40 border border-slate-200 dark:border-white/10 flex items-center justify-center p-2 overflow-hidden">
                 {arenaLogoUrl && !logoError ? (
                   <img
@@ -148,9 +270,41 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = ({ systemConfig, onSa
 
             {/* BGMI Icon */}
             <div className="space-y-3 p-4 rounded-xl border border-slate-200 dark:border-white/10 bg-black/5 dark:bg-black/20">
-              <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider block">
-                BGMI Game Icon
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                  BGMI Game Icon
+                </span>
+                {uploadingTarget === 'bgmiIconUrl' && (
+                  <span className="text-[10px] text-brand-500 font-bold animate-pulse">
+                    Uploading {uploadProgress}%
+                  </span>
+                )}
+              </div>
+
+              <div>
+                <input
+                  type="file"
+                  ref={bgmiFileRef}
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload(file, 'bgmiIconUrl');
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="glass"
+                  size="sm"
+                  className="w-full text-xs flex items-center justify-center gap-1.5"
+                  loading={uploadingTarget === 'bgmiIconUrl'}
+                  onClick={() => bgmiFileRef.current?.click()}
+                  icon="solar:upload-minimal-linear"
+                >
+                  Upload BGMI Icon
+                </Button>
+              </div>
+
               <Input
                 placeholder="https://.../bgmi-icon.png"
                 value={bgmiIconUrl}
@@ -159,8 +313,9 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = ({ systemConfig, onSa
                   setBgmiError(false);
                 }}
                 error={fieldErrors['bgmiIconUrl']}
-                helperText="Must be a valid HTTPS image URL"
+                helperText="Upload image or paste direct HTTPS image URL"
               />
+
               <div className="h-24 rounded-lg bg-black/40 border border-slate-200 dark:border-white/10 flex items-center justify-center p-2 overflow-hidden">
                 {bgmiIconUrl && !bgmiError ? (
                   <img
@@ -180,9 +335,41 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = ({ systemConfig, onSa
 
             {/* Free Fire Icon */}
             <div className="space-y-3 p-4 rounded-xl border border-slate-200 dark:border-white/10 bg-black/5 dark:bg-black/20">
-              <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider block">
-                Free Fire Game Icon
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                  Free Fire Game Icon
+                </span>
+                {uploadingTarget === 'ffIconUrl' && (
+                  <span className="text-[10px] text-brand-500 font-bold animate-pulse">
+                    Uploading {uploadProgress}%
+                  </span>
+                )}
+              </div>
+
+              <div>
+                <input
+                  type="file"
+                  ref={ffFileRef}
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload(file, 'ffIconUrl');
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="glass"
+                  size="sm"
+                  className="w-full text-xs flex items-center justify-center gap-1.5"
+                  loading={uploadingTarget === 'ffIconUrl'}
+                  onClick={() => ffFileRef.current?.click()}
+                  icon="solar:upload-minimal-linear"
+                >
+                  Upload Free Fire Icon
+                </Button>
+              </div>
+
               <Input
                 placeholder="https://.../freefire-icon.png"
                 value={ffIconUrl}
@@ -191,8 +378,9 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = ({ systemConfig, onSa
                   setFfError(false);
                 }}
                 error={fieldErrors['ffIconUrl']}
-                helperText="Must be a valid HTTPS image URL"
+                helperText="Upload image or paste direct HTTPS image URL"
               />
+
               <div className="h-24 rounded-lg bg-black/40 border border-slate-200 dark:border-white/10 flex items-center justify-center p-2 overflow-hidden">
                 {ffIconUrl && !ffError ? (
                   <img
@@ -213,7 +401,7 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = ({ systemConfig, onSa
 
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200 dark:border-white/10">
             <Button variant="ghost" size="sm" type="button" onClick={handleClear}>
-              Clear Fields
+              Reset Defaults
             </Button>
             <Button
               type="submit"

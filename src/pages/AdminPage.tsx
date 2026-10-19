@@ -20,11 +20,14 @@ import { RegistrationReview } from '../components/admin/RegistrationReview';
 import { LeaderboardTable } from '../components/leaderboard/LeaderboardTable';
 import { useLeaderboard } from '../hooks/useLeaderboard';
 import { uploadFile } from '../services/storageService';
+import { useAuth } from '../context/AuthContext';
+import { isAdmin } from '../lib/permissions';
 import { where } from 'firebase/firestore';
 import { Icon } from '@iconify/react';
 
 
 export const AdminPage: React.FC = () => {
+  const { user, role } = useAuth();
   const { gameId, game } = useGame();
   const { success, error } = useToast();
 
@@ -73,7 +76,12 @@ export const AdminPage: React.FC = () => {
   const {
     data: registrations,
     refetch: refetchRegistrations,
-  } = useFirestoreCollection<Registration>('registrations', regConstraints, registrationConverter);
+  } = useFirestoreCollection<Registration>(
+    'registrations',
+    regConstraints,
+    registrationConverter,
+    { enabled: Boolean(user && isAdmin(role)) }
+  );
 
   // Tournament Create/Edit Modal
   const [tourneyModalOpen, setTourneyModalOpen] = useState(false);

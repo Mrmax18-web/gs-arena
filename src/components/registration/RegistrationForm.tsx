@@ -265,10 +265,26 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+
     setStepError(null);
     setFieldErrors({});
 
-    const normalizedOtr = otr.trim().toUpperCase();
+    let normalizedOtr = otr.trim().toUpperCase();
+    if (entryFeeINR === 0 && !normalizedOtr) {
+      normalizedOtr = 'FREE-ENTRY-' + Date.now().toString().slice(-6);
+    }
+
+    if (entryFeeINR > 0 && !paymentScreenshotUrl) {
+      setStepError('Please upload your payment receipt screenshot before submitting.');
+      error('Missing Payment Proof', 'Paid entry tournaments require a verified payment screenshot.');
+      return;
+    }
+
+    let finalScreenshotUrl = paymentScreenshotUrl;
+    if (entryFeeINR === 0 && !finalScreenshotUrl) {
+      finalScreenshotUrl = 'https://gs-arena.vercel.app/free-entry.png';
+    }
 
     const formData = {
       tournamentId,
@@ -276,7 +292,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
       leaderEmail,
       players: [player1, player2, player3, player4],
       otr: normalizedOtr,
-      paymentScreenshotUrl,
+      paymentScreenshotUrl: finalScreenshotUrl,
       teamLogoUrl: teamLogoUrl || undefined,
       rulesAccepted: rulesAccepted as any,
     };
@@ -736,6 +752,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                 type="submit"
                 variant="primary"
                 size="lg"
+                disabled={submitting}
                 loading={submitting}
                 icon="solar:check-read-bold"
               >

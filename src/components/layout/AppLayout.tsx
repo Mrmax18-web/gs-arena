@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TwistRibbon } from '../backgrounds/TwistRibbon';
@@ -6,6 +6,7 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { isFirebaseConfigured } from '../../lib/firebase';
 import { useGame } from '../../context/GameContext';
 import { Icon } from '@iconify/react';
+import { useAppearance } from '../../hooks/useAppearance';
 import { Button } from '../ui/Button';
 
 export const AppLayout: React.FC = () => {
@@ -14,6 +15,12 @@ export const AppLayout: React.FC = () => {
   const navigate = useNavigate();
   const { gameId } = useGame();
   const configured = isFirebaseConfigured();
+  const { appearance } = useAppearance();
+  const [logoError, setLogoError] = useState(false);
+
+  useEffect(() => {
+    setLogoError(false);
+  }, [appearance.arenaLogoUrl]);
 
   // If on the root GameSelectPage or public /viewer, omit sidebar
   const isFullScreenPage = location.pathname === '/' || location.pathname === '/viewer';
@@ -59,11 +66,26 @@ export const AppLayout: React.FC = () => {
             onClick={() => navigate('/')}
             className="flex items-center gap-2 cursor-pointer"
           >
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-tr from-red-600 to-red-700 text-white shadow-sm shadow-red-600/20">
-              <Icon icon="solar:cup-star-bold" className="text-sm" />
-            </div>
+            {appearance.arenaLogoUrl && !logoError ? (
+              <img
+                src={appearance.arenaLogoUrl}
+                alt={appearance.siteName || 'GS Arena'}
+                onError={() => setLogoError(true)}
+                className="h-7 w-7 object-contain rounded-lg shadow-sm"
+              />
+            ) : (
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-tr from-red-600 to-red-700 text-white shadow-sm shadow-red-600/20">
+                <Icon icon="solar:cup-star-bold" className="text-sm" />
+              </div>
+            )}
             <span className="font-bold text-sm tracking-tight text-slate-900 dark:text-white">
-              GS <span className="text-brand-500">ARENA</span>
+              {appearance.siteName ? (
+                appearance.siteName
+              ) : (
+                <>
+                  GS <span className="text-brand-500">ARENA</span>
+                </>
+              )}
             </span>
           </div>
 
@@ -83,12 +105,12 @@ export const AppLayout: React.FC = () => {
 
         {/* 5. Main Routed Content */}
         <main
-          className={`flex-1 min-h-[calc(100vh-60px)] transition-all duration-300 ${
+          className={`flex-1 min-h-[calc(100vh-60px)] transition-all duration-300 relative z-10 ${
             !isFullScreenPage ? 'md:pl-[72px]' : ''
           }`}
         >
           <ErrorBoundary>
-            <div className="w-full h-full">
+            <div className="w-full h-full relative z-10">
               <Outlet />
             </div>
           </ErrorBoundary>

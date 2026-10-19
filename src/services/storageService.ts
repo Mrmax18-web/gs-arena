@@ -1,8 +1,8 @@
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
+export const SUPABASE_BUCKET_NAME = 'GS-ARENA';
 export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 export const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
-const BUCKET_NAME = 'GS-ARENA';
 
 export interface FileValidationResult {
   valid: boolean;
@@ -10,6 +10,10 @@ export interface FileValidationResult {
 }
 
 export function validateImageFile(file: File): FileValidationResult {
+  if (!file) {
+    return { valid: false, error: 'No file provided.' };
+  }
+
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
     return {
       valid: false,
@@ -27,6 +31,17 @@ export function validateImageFile(file: File): FileValidationResult {
   return { valid: true };
 }
 
+export function sanitizeStorageFilename(originalName: string, prefix = ''): string {
+  const parts = originalName.split('.');
+  const ext = parts.length > 1 ? parts.pop()?.toLowerCase() : 'jpg';
+  const rawBase = parts.join('.');
+  const cleanBase = rawBase.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40) || 'upload';
+  const timestamp = Date.now();
+  const randomSuffix = Math.random().toString(36).substring(2, 8);
+  const cleanPrefix = prefix ? `${prefix.replace(/\/+$/, '')}/` : '';
+  return `${cleanPrefix}${timestamp}_${randomSuffix}_${cleanBase}.${ext}`;
+}
+
 export interface UploadProgressHandler {
   onProgress?: (percent: number) => void;
   onError?: (err: Error) => void;
@@ -37,71 +52,153 @@ export function uploadFile(
   storagePath: string,
   file: File,
   handlers?: UploadProgressHandler
-): { promise: Promise<string> } {
-  const promise = (async (): Promise<string> => {
-    const validation = validateImageFile(file);
-    if (!validation.valid) {
-      throw new Error(validation.error);
-    }
+): { task: any; promise: Promise<string> } {
+  // 1. Client-side validation before attempting upload
+  const validation = validateImageFile(file);
+  if (!validation.valid) {
+    const valErr = new Error(validation.error || 'Invalid file');
+    handlers?.onError?.(valErr);
+    return {
+      task: null,
+      promise: Promise.reject(valErr),
+    };
+  }
 
-    try {
-      handlers?.onProgress?.(10);
+  if (!isSupabaseConfigured()) {
+    const cfgErr = new Error(
+      'Supabase Storage is not configured. Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY.'
+    );
+    console.error('[Supabase Storage Upload Error]', {
+      bucket: SUPABASE_BUCKET_NAME,
+      path: storagePath,
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size,
+      errorMessage: cfgErr.message,
+      errorName: cfgErr.name,
+      statusCode: 500,
+    });
+    handlers?.onError?.(cfgErr);
+    return {
+      task: null,
+      promise: Promise.reject(cfgErr),
+    };
+  }
 
-      // Clean the path (remove leading slash if present)
-      const cleanPath = storagePath.startsWith('/') ? storagePath.slice(1) : storagePath;
+  // Clean path without leading slash
+  const cleanPath = storagePath.replace(/^\/+/, '');
 
-      handlers?.onProgress?.(50);
+  handlers?.onProgress?.(10);
 
-      // Upload to Supabase
-      const { error } = await supabase.storage
-        .from(BUCKET_NAME)
-        .upload(cleanPath, file, {
-          cacheControl: '3600',
-          upsert: true, // Overwrite if file with same name exists
-          contentType: file.type,
+  const promise = new Promise<string>((resolve, reject) => {
+    (async () => {
+      try {
+        handlers?.onProgress?.(30);
+
+        // Perform Supabase Storage upload
+        const { data, error: uploadError } = await supabase.storage
+          .from(SUPABASE_BUCKET_NAME)
+          .upload(cleanPath, file, {
+            contentType: file.type,
+            upsert: true,
+          });
+
+        if (uploadError) {
+          const statusCode =
+            (uploadError as any).statusCode ||
+            (uploadError as any).status ||
+            ((uploadError as any).error === 'Bucket not found' ? 404 : 400);
+
+          console.error('[Supabase Storage Upload Error]', {
+            bucket: SUPABASE_BUCKET_NAME,
+            path: cleanPath,
+            fileName: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+            errorMessage: uploadError.message,
+            errorName: uploadError.name,
+            statusCode,
+          });
+
+          const formattedError = new Error(uploadError.message);
+          handlers?.onError?.(formattedError);
+          reject(formattedError);
+          return;
+        }
+
+        handlers?.onProgress?.(80);
+
+        // Retrieve public URL from bucket
+        const { data: urlData } = supabase.storage
+          .from(SUPABASE_BUCKET_NAME)
+          .getPublicUrl(data.path);
+
+        const downloadUrl = urlData.publicUrl;
+        handlers?.onProgress?.(100);
+        handlers?.onSuccess?.(downloadUrl);
+        resolve(downloadUrl);
+      } catch (err: any) {
+        console.error('[Supabase Storage Upload Error]', {
+          bucket: SUPABASE_BUCKET_NAME,
+          path: cleanPath,
+          fileName: file.name,
+          fileType: file.type,
+          fileSize: file.size,
+          errorMessage: err?.message || 'Unknown upload exception',
+          errorName: err?.name || 'UploadException',
+          statusCode: err?.statusCode || 500,
         });
 
-      if (error) throw error;
+        handlers?.onError?.(err);
+        reject(err);
+      }
+    })();
+  });
 
-      handlers?.onProgress?.(90);
+  return {
+    task: {
+      cancel: () => {},
+    },
+    promise,
+  };
+}
 
-      // Get public URL
-      const { data: publicUrlData } = supabase.storage
-        .from(BUCKET_NAME)
-        .getPublicUrl(cleanPath);
-
-      handlers?.onProgress?.(100);
-      handlers?.onSuccess?.(publicUrlData.publicUrl);
-
-      return publicUrlData.publicUrl;
-    } catch (err: any) {
-      handlers?.onError?.(err);
-      throw err;
-    }
-  })();
-
-  return { promise };
+export async function uploadStorageFile(
+  file: File,
+  folder: string = 'uploads',
+  onProgress?: (percent: number) => void
+): Promise<string> {
+  const sanitized = sanitizeStorageFilename(file.name, folder);
+  const { promise } = uploadFile(sanitized, file, { onProgress });
+  return await promise;
 }
 
 export async function deleteStorageFile(storagePathOrUrl: string): Promise<void> {
+  if (!isSupabaseConfigured() || !storagePathOrUrl) return;
+
   try {
-    // If it's a full URL, extract just the file path part
-    let cleanPath = storagePathOrUrl;
-    if (cleanPath.includes(`${BUCKET_NAME}/`)) {
-      cleanPath = cleanPath.split(`${BUCKET_NAME}/`)[1];
+    let relativePath = storagePathOrUrl;
+    // If it's a full public URL, extract path after bucket name
+    if (storagePathOrUrl.startsWith('http')) {
+      const match = storagePathOrUrl.match(new RegExp(`/${SUPABASE_BUCKET_NAME}/(.*)$`));
+      if (match && match[1]) {
+        relativePath = decodeURIComponent(match[1]);
+      } else {
+        const urlObj = new URL(storagePathOrUrl);
+        const segments = urlObj.pathname.split('/');
+        const bIdx = segments.indexOf(SUPABASE_BUCKET_NAME);
+        if (bIdx !== -1) {
+          relativePath = segments.slice(bIdx + 1).join('/');
+        }
+      }
     }
-    
-    // Remove any URL query parameters
-    cleanPath = cleanPath.split('?')[0];
 
-    const { error } = await supabase.storage
-      .from(BUCKET_NAME)
-      .remove([cleanPath]);
-
+    const cleanPath = relativePath.replace(/^\/+/, '');
+    const { error } = await supabase.storage.from(SUPABASE_BUCKET_NAME).remove([cleanPath]);
     if (error) {
-      console.warn('Failed to delete Supabase storage file:', error);
+      console.warn('Failed to delete Supabase storage file:', error.message);
     }
-  } catch (err) {
-    console.warn('Failed to delete storage file:', err);
+  } catch (err: any) {
+    console.warn('Exception deleting Supabase storage file:', err?.message);
   }
 }

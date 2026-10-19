@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { GlassCard } from '../ui/GlassCard';
 import { Button } from '../ui/Button';
 import { Icon } from '@iconify/react';
@@ -10,12 +10,14 @@ interface RegistrationSuccessProps {
   tournamentName?: string;
 }
 
-export const RegistrationSuccess: React.FC<RegistrationSuccessProps> = ({
-  teamName,
-  leaderEmail,
-  tournamentName,
-}) => {
+export const RegistrationSuccess: React.FC<RegistrationSuccessProps> = (props) => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const state = (location.state as Partial<RegistrationSuccessProps>) || {};
+
+  const teamName = props.teamName || state.teamName;
+  const leaderEmail = props.leaderEmail || state.leaderEmail;
+  const tournamentName = props.tournamentName || state.tournamentName;
 
   return (
     <div className="flex min-h-[70vh] items-center justify-center p-4">

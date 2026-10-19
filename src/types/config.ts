@@ -8,6 +8,7 @@ export interface AppearanceConfig {
   bgmiIconUrl?: string;
   ffIconUrl?: string;
   arenaLogoUrl?: string;
+  siteName?: string;
   updatedAt?: string;
   updatedBy?: string;
 }
@@ -27,6 +28,15 @@ export interface SystemConfig {
   appearance?: AppearanceConfig;
 }
 
+export interface TwistRibbonAdvancedColors {
+  goldColor?: string;
+  highColor?: string;
+  blueDeep?: string;
+  blueHigh?: string;
+  paleColor?: string;
+  coolTint?: string;
+}
+
 export interface BackgroundConfig {
   enabled: boolean;
   background?: string;
@@ -37,9 +47,11 @@ export interface BackgroundConfig {
   hover?: number;
   colorSplit?: number;
   ribbonGrain?: number;
+  advanced?: TwistRibbonAdvancedColors & Record<string, unknown>;
   // Legacy / CSS fallback support
   colors: string[];
   density?: number;
   angle?: number;
   opacity: number;
 }
+
