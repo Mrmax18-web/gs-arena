@@ -2,18 +2,19 @@ import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, Auth } from 'firebase/auth';
 import { initializeFirestore, getFirestore, connectFirestoreEmulator, Firestore } from 'firebase/firestore';
 import { getFunctions, connectFunctionsEmulator, Functions } from 'firebase/functions';
-// Note: You can remove the storage import if you have fully migrated to Supabase
 import { getStorage, connectStorageEmulator, FirebaseStorage } from 'firebase/storage';
+import { getAnalytics, Analytics } from "firebase/analytics";
 
-// Hardcoded Firebase Configuration (Bypasses Vercel Env Vars issue)
+// Hardcoded Firebase Configuration with the new API Key
 const firebaseConfig = {
-  apiKey: "AIzaSyAdEmc9t6lu4hcZXmfgyPLVQ6IR9T5C0dM",
+  apiKey: "AIzaSyBDTFbtp3ER_QtORXW94uUaXuM5GBRShiU",
   authDomain: "gs-arena.firebaseapp.com",
+  databaseURL: "https://gs-arena-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "gs-arena",
   storageBucket: "gs-arena.firebasestorage.app",
   messagingSenderId: "975047009630",
-  appId: "1:975047009630:web:05bc86474a33e961391bcf",
-  measurementId: "G-7YFTS2VNXC"
+  appId: "1:975047009630:web:d1b335070e05dd36391bcf",
+  measurementId: "G-7SDQ4C0C8K"
 };
 
 export function isFirebaseConfigured(): boolean {
@@ -25,12 +26,14 @@ let auth: Auth | null = null;
 let db: Firestore | null = null;
 let functions: Functions | null = null;
 let storage: FirebaseStorage | null = null;
+let analytics: Analytics | null = null;
 
 if (isFirebaseConfigured()) {
   app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
   auth = getAuth(app);
   
   try {
+    // experimentalAutoDetectLongPolling fixes the WebChannel transport errors on Vercel
     db = initializeFirestore(app, {
       experimentalAutoDetectLongPolling: true,
     });
@@ -41,8 +44,17 @@ if (isFirebaseConfigured()) {
   functions = getFunctions(app);
   storage = getStorage(app);
 
-  // Emulators disabled for production deployment
-  const useEmulators = false; // Hardcoded to false
+  // Safely initialize analytics only in the browser
+  try {
+    if (typeof window !== 'undefined') {
+      analytics = getAnalytics(app);
+    }
+  } catch (error) {
+    console.warn('Firebase Analytics could not be initialized:', error);
+  }
+
+  // Emulators are disabled for production
+  const useEmulators = false; 
   if (useEmulators) {
     try {
       connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
@@ -51,9 +63,9 @@ if (isFirebaseConfigured()) {
       connectStorageEmulator(storage, '127.0.0.1', 9199);
       console.info('Connected to Firebase Emulators');
     } catch {
-      // Ignored if already connected or in re-render
+      // Ignored
     }
   }
 }
 
-export { app, auth, db, functions, storage };
+export { app, auth, db, functions, storage, analytics };
