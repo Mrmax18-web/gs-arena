@@ -4,10 +4,10 @@ import { Button } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useToast } from '../ui/Toast';
 import {
-  callGenerateDemoData,
-  callDeleteAllData,
-  DeleteDataResponse,
-} from '../../services/functionsClient';
+  generateDemoData,
+  deleteAllData,
+  DeleteDataResult,
+} from '../../services/demoDataService';
 import { Icon } from '@iconify/react';
 
 export const DemoDataTab: React.FC<{ onDataChanged?: () => void }> = ({ onDataChanged }) => {
@@ -17,12 +17,12 @@ export const DemoDataTab: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteMode, setDeleteMode] = useState<'demo' | 'all'>('demo');
   const [deleting, setDeleting] = useState(false);
-  const [lastResult, setLastResult] = useState<DeleteDataResponse | null>(null);
+  const [lastResult, setLastResult] = useState<DeleteDataResult | null>(null);
 
   const handleGenerate = async () => {
     setGenerating(true);
     try {
-      const res = await callGenerateDemoData();
+      const res = await generateDemoData();
       if (res.success) {
         success('Demo Data Generated', res.message || '16 teams and 5 matches created with player statistics.');
         if (onDataChanged) onDataChanged();
@@ -30,7 +30,7 @@ export const DemoDataTab: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
         error('Generation Error', res.message || 'Could not generate demo data.');
       }
     } catch (err: any) {
-      error('Function Error', err?.message || 'Failed to call generateDemoData.');
+      error('Generation Error', err?.message || 'Failed to generate demo data in Firestore.');
     } finally {
       setGenerating(false);
     }
@@ -41,7 +41,7 @@ export const DemoDataTab: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
     try {
       const isDemoOnly = deleteMode === 'demo';
       const confirmPhrase = isDemoOnly ? 'DELETE DEMO' : 'DELETE ALL DATA';
-      const res = await callDeleteAllData(confirmPhrase, isDemoOnly);
+      const res = await deleteAllData(confirmPhrase, isDemoOnly);
 
       if (res.success) {
         setLastResult(res);
@@ -54,7 +54,7 @@ export const DemoDataTab: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
         error('Deletion Failed', res.message || 'Could not delete records.');
       }
     } catch (err: any) {
-      error('Delete Error', err?.message || 'Failed to execute deletion callable.');
+      error('Delete Error', err?.message || 'Failed to execute deletion in Firestore.');
     } finally {
       setDeleting(false);
       setDeleteModalOpen(false);

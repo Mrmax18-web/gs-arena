@@ -85,3 +85,6 @@ export const RegistrationSuccess: React.FC<RegistrationSuccessProps> = (props) =
     </div>
   );
 };
+
+export default RegistrationSuccess;
+

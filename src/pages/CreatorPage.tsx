@@ -18,7 +18,7 @@ import { DemoDataTab } from '../components/creator/DemoDataTab';
 import { BackgroundTab } from '../components/creator/BackgroundTab';
 import { isCreator } from '../lib/permissions';
 import { Icon } from '@iconify/react';
-import { where } from 'firebase/firestore';
+import { where, limit } from 'firebase/firestore';
 
 export const CreatorPage: React.FC = () => {
   const { user, role, claimCreator, refreshRole } = useAuth();
@@ -37,7 +37,7 @@ export const CreatorPage: React.FC = () => {
 
   // Admin requests
   const isCreatorUser = Boolean(user && isCreator(role));
-  const adminReqConstraints = [where('status', '==', 'pending')];
+  const adminReqConstraints = [where('status', '==', 'pending'), limit(50)];
   const {
     data: adminRequests,
     refetch: refetchRequests,
@@ -196,4 +196,7 @@ export const CreatorPage: React.FC = () => {
     </div>
   );
 };
+
+export default CreatorPage;
+
 

@@ -10,7 +10,7 @@ import { Select } from '../components/ui/Select';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Skeleton } from '../components/ui/Skeleton';
 import { ErrorState } from '../components/ui/ErrorState';
-import { where } from 'firebase/firestore';
+import { where, limit } from 'firebase/firestore';
 import { Icon } from '@iconify/react';
 
 export const AnalyticsPage: React.FC = () => {
@@ -19,7 +19,7 @@ export const AnalyticsPage: React.FC = () => {
   const urlTournamentId = searchParams.get('t') || '';
 
   // 1. Load tournaments matching active game
-  const tourneyConstraints = useMemo(() => [where('gameId', '==', gameId)], [gameId]);
+  const tourneyConstraints = useMemo(() => [where('gameId', '==', gameId), limit(50)], [gameId]);
   const {
     data: tournaments,
     loading: tLoading,
@@ -322,3 +322,6 @@ export const AnalyticsPage: React.FC = () => {
     </div>
   );
 };
+
+export default AnalyticsPage;
+

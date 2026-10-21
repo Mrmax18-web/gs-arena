@@ -22,7 +22,7 @@ import { useLeaderboard } from '../hooks/useLeaderboard';
 import { uploadFile } from '../services/storageService';
 import { useAuth } from '../context/AuthContext';
 import { isAdmin } from '../lib/permissions';
-import { where } from 'firebase/firestore';
+import { where, limit } from 'firebase/firestore';
 import { Icon } from '@iconify/react';
 
 
@@ -34,7 +34,7 @@ export const AdminPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'tournaments' | 'matches' | 'results' | 'credentials' | 'registrations'>('tournaments');
 
   // Load tournaments for the active game
-  const tourneyConstraints = useMemo(() => [where('gameId', '==', gameId)], [gameId]);
+  const tourneyConstraints = useMemo(() => [where('gameId', '==', gameId), limit(50)], [gameId]);
   const {
     data: tournaments,
     refetch: refetchTournaments,
@@ -70,7 +70,7 @@ export const AdminPage: React.FC = () => {
 
   // Load registrations
   const regConstraints = useMemo(() => {
-    return activeTournament ? [where('tournamentId', '==', activeTournament.id)] : [];
+    return activeTournament ? [where('tournamentId', '==', activeTournament.id), limit(50)] : [];
   }, [activeTournament]);
 
   const {
@@ -222,7 +222,11 @@ export const AdminPage: React.FC = () => {
       refetchTournaments();
       setTourneyModalOpen(false);
     } catch (err: any) {
-      error('Save Failed', err?.message || 'Could not save tournament.');
+      const isPermissionErr = err?.code === 'permission-denied' || err?.message?.toLowerCase().includes('permission');
+      const msg = isPermissionErr
+        ? 'Permission denied: Ensure you are signed in with dheerajsinghbaghel1306@gmail.com to create/edit tournaments.'
+        : (err?.message || 'Could not save tournament.');
+      error('Save Failed', msg);
     } finally {
       setSavingTourney(false);
     }
@@ -810,4 +814,7 @@ export const AdminPage: React.FC = () => {
     </div>
   );
 };
+
+export default AdminPage;
+
 

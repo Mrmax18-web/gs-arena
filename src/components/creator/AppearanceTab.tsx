@@ -12,6 +12,7 @@ import { useFirestoreCollection } from '../../hooks/useFirestoreCollection';
 import { tournamentConverter } from '../../lib/converters';
 import { Icon } from '@iconify/react';
 import { useAppearance } from '../../hooks/useAppearance';
+import { limit } from 'firebase/firestore';
 
 interface AppearanceTabProps {
   systemConfig?: SystemConfig;
@@ -54,7 +55,7 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = ({ systemConfig, onSa
   // Load tournaments for read-only UPI / fee inspection
   const { data: tournaments } = useFirestoreCollection<Tournament>(
     'tournaments',
-    [],
+    [limit(50)],
     tournamentConverter
   );
 

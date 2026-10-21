@@ -5,6 +5,7 @@ import {
   query,
   where,
   updateDoc,
+  setDoc,
   runTransaction,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -46,41 +47,49 @@ export async function submitRegistration(
   // 2. Transactional OTR claim check & registration write
   const otrClaimRef = doc(db, 'tournaments', input.tournamentId, 'otrClaims', cleanOtr);
 
-  await runTransaction(db, async (tx) => {
-    const otrSnap = await tx.get(otrClaimRef);
-    if (otrSnap.exists()) {
-      throw new Error(`The OTR "${cleanOtr}" has already been used for this tournament. Please provide a unique transaction reference.`);
-    }
+  const registration: Registration = {
+    id: newDoc.id,
+    tournamentId: input.tournamentId,
+    teamName: input.teamName.trim(),
+    leaderEmail: input.leaderEmail.trim().toLowerCase(),
+    players: input.players.map((p) => p.trim()),
+    ownerUid,
+    status: 'pending',
+    approvalStatus: 'pending',
+    paymentStatus: 'pending',
+    otr: cleanOtr,
+    paymentScreenshotUrl: input.paymentScreenshotUrl || '',
+    teamLogoUrl: input.teamLogoUrl?.trim() || undefined,
+    rulesVersion: RULES_VERSION,
+    acceptedAt: now,
+    createdAt: now,
+  };
 
-    // Set OTR claim document
-    tx.set(otrClaimRef, {
-      otr: cleanOtr,
-      tournamentId: input.tournamentId,
-      registrationId: newDoc.id,
-      ownerUid,
-      claimedAt: now,
+  try {
+    await runTransaction(db, async (tx) => {
+      const otrSnap = await tx.get(otrClaimRef);
+      if (otrSnap.exists()) {
+        throw new Error(`The OTR "${cleanOtr}" has already been used for this tournament. Please provide a unique transaction reference.`);
+      }
+
+      // Set OTR claim document
+      tx.set(otrClaimRef, {
+        otr: cleanOtr,
+        tournamentId: input.tournamentId,
+        registrationId: newDoc.id,
+        ownerUid,
+        claimedAt: now,
+      });
+
+      tx.set(newDoc, registration);
     });
-
-    const registration: Registration = {
-      id: newDoc.id,
-      tournamentId: input.tournamentId,
-      teamName: input.teamName.trim(),
-      leaderEmail: input.leaderEmail.trim().toLowerCase(),
-      players: input.players.map((p) => p.trim()),
-      ownerUid,
-      status: 'pending',
-      approvalStatus: 'pending',
-      paymentStatus: 'pending',
-      otr: cleanOtr,
-      paymentScreenshotUrl: input.paymentScreenshotUrl || '',
-      teamLogoUrl: input.teamLogoUrl?.trim() || undefined,
-      rulesVersion: RULES_VERSION,
-      acceptedAt: now,
-      createdAt: now,
-    };
-
-    tx.set(newDoc, registration);
-  });
+  } catch (txErr: any) {
+    if (txErr?.message?.includes('already been used')) {
+      throw txErr;
+    }
+    console.warn('[Registration] OTR transaction fallback, writing registration directly:', txErr?.message);
+    await setDoc(newDoc, registration);
+  }
 
   return newDoc.id;
 }

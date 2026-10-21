@@ -33,7 +33,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   onSuccess,
 }) => {
   const navigate = useNavigate();
-  const { ensureAnonymousUser, user } = useAuth();
+  const { user } = useAuth();
   const { success, error, info } = useToast();
 
   const openTournaments = tournaments.filter((t) => t.registrationOpen);
@@ -155,9 +155,9 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     }
 
     try {
-      const currentUser = user || (await ensureAnonymousUser());
+      const userPrefix = user?.uid || `guest_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       const ext = file.name.split('.').pop() || 'jpg';
-      const path = `tournaments/${tournamentId}/payments/${currentUser.uid}_${Date.now()}.${ext}`;
+      const path = `tournaments/${tournamentId}/payments/${userPrefix}_${Date.now()}.${ext}`;
 
       setScreenshotUploadProgress(0);
       const { promise } = uploadFile(path, file, {
@@ -312,8 +312,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
 
     setSubmitting(true);
     try {
-      const currentUser = user || (await ensureAnonymousUser());
-      await submitRegistration(validation.data, currentUser.uid);
+      const ownerUid = user?.uid || `guest_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      await submitRegistration(validation.data, ownerUid);
 
       const targetTourney = openTournaments.find((t) => t.id === tournamentId);
 

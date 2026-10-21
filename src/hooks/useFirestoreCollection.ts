@@ -60,6 +60,7 @@ export function useFirestoreCollection<T>(
             const item = doc.data() as T;
             if (item) items.push(item);
           });
+          console.log("Snapshot received:", items);
           setData(items);
           setLoading(false);
         },

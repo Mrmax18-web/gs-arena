@@ -9,8 +9,7 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { auth, db, functions, isFirebaseConfigured } from '../lib/firebase';
+import { auth, db, isFirebaseConfigured } from '../lib/firebase';
 import { AdminApplicationInput } from '../lib/validators';
 import { UserRole } from '../types/auth';
 
@@ -222,8 +221,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!auth) throw new Error('Firebase Auth not configured');
     if (auth.currentUser) return auth.currentUser;
 
-    const cred = await signInAnonymously(auth);
-    return cred.user;
+    try {
+      const cred = await signInAnonymously(auth);
+      return cred.user;
+    } catch (err: any) {
+      if (err?.code === 'auth/admin-restricted-operation') {
+        const msg =
+          'Anonymous Authentication is disabled in Firebase Console. Please enable the Anonymous provider under Authentication > Sign-in method in Firebase Console.';
+        setError(msg);
+        throw new Error(msg);
+      }
+      throw err;
+    }
   };
 
   const applyForAdmin = async (data: AdminApplicationInput) => {
@@ -248,31 +257,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       grantCreatorPermissions();
       return { success: true };
     }
-
-    if (!functions) {
-      throw new Error('Firebase functions not configured');
-    }
-
-    // Ensure there is an authenticated session (anonymous or registered) to associate custom claims
-    if (!auth?.currentUser) {
-      await ensureAnonymousUser();
-    }
-
-    try {
-      const claimFn = httpsCallable<{ code: string }, { success: boolean; message?: string }>(
-        functions,
-        'claimCreator'
-      );
-      const res = await claimFn({ code });
-      if (res.data?.success) {
-        // Force token refresh from backend to immediately retrieve new creator claims
-        await refreshRole();
-        return { success: true };
-      }
-      return { success: false, message: res.data?.message || 'Invalid access code' };
-    } catch (err: any) {
-      return { success: false, message: err?.message || 'Callable function error' };
-    }
+    return { success: false, message: 'Invalid creator access code' };
   };
 
   const clearError = () => setError(null);

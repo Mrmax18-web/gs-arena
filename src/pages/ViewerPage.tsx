@@ -265,3 +265,6 @@ export const ViewerPage: React.FC = () => {
     </div>
   );
 };
+
+export default ViewerPage;
+

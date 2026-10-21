@@ -29,6 +29,7 @@ export function useAppearance(): {
         (snap) => {
           if (snap.exists()) {
             const data = snap.data();
+            console.log("Snapshot received:", data);
             if (data) {
               setAppearance(data);
             }

@@ -1,7 +1,6 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, Auth } from 'firebase/auth';
 import { initializeFirestore, getFirestore, connectFirestoreEmulator, Firestore } from 'firebase/firestore';
-import { getFunctions, connectFunctionsEmulator, Functions } from 'firebase/functions';
 import { getStorage, connectStorageEmulator, FirebaseStorage } from 'firebase/storage';
 import { getAnalytics, Analytics } from "firebase/analytics";
 
@@ -24,7 +23,7 @@ export function isFirebaseConfigured(): boolean {
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
-let functions: Functions | null = null;
+const functions = null;
 let storage: FirebaseStorage | null = null;
 let analytics: Analytics | null = null;
 
@@ -41,7 +40,6 @@ if (isFirebaseConfigured()) {
     db = getFirestore(app);
   }
   
-  functions = getFunctions(app);
   storage = getStorage(app);
 
   // Safely initialize analytics only in the browser
@@ -59,7 +57,6 @@ if (isFirebaseConfigured()) {
     try {
       connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
       connectFirestoreEmulator(db, '127.0.0.1', 8080);
-      connectFunctionsEmulator(functions, '127.0.0.1', 5001);
       connectStorageEmulator(storage, '127.0.0.1', 9199);
       console.info('Connected to Firebase Emulators');
     } catch {

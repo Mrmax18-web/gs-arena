@@ -5,7 +5,8 @@ import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useToast } from '../ui/Toast';
-import { callReviewAdminRequest } from '../../services/functionsClient';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
 interface AdminApprovalsTabProps {
   requests: AdminRequest[];
@@ -32,16 +33,27 @@ export const AdminApprovalsTab: React.FC<AdminApprovalsTabProps> = ({
     if (!selectedReq) return;
     setSubmitting(true);
     try {
-      const res = await callReviewAdminRequest(selectedReq.uid, decision);
-      if (res.success) {
-        success(
-          decision === 'approve' ? 'Admin Approved' : 'Admin Request Rejected',
-          `Successfully processed request for ${selectedReq.name}.`
-        );
-        if (onRefresh) onRefresh();
-      } else {
-        error('Review Error', res.message || 'Operation failed.');
+      if (!db) throw new Error('Firestore not initialized');
+      await updateDoc(doc(db, 'adminRequests', selectedReq.uid), {
+        status: decision === 'approve' ? 'approved' : 'rejected',
+        updatedAt: new Date().toISOString(),
+      });
+
+      // Mirror updated role in users/{uid} if document exists
+      try {
+        await updateDoc(doc(db, 'users', selectedReq.uid), {
+          role: decision === 'approve' ? 'admin' : 'public',
+          updatedAt: new Date().toISOString(),
+        });
+      } catch {
+        // Ignored if user profile document not found
       }
+
+      success(
+        decision === 'approve' ? 'Admin Approved' : 'Admin Request Rejected',
+        `Successfully processed request for ${selectedReq.name}.`
+      );
+      if (onRefresh) onRefresh();
     } catch (err: any) {
       error('Review Error', err?.message || 'Failed to review request.');
     } finally {

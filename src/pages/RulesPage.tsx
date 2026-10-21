@@ -212,3 +212,6 @@ export const RulesPage: React.FC = () => {
     </div>
   );
 };
+
+export default RulesPage;
+

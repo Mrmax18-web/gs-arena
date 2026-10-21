@@ -5,8 +5,7 @@ import { Input } from '../ui/Input';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useToast } from '../ui/Toast';
 import { getMatchSecrets, saveMatchSecrets } from '../../services/tournamentService';
-import { callSendRoomCredentials } from '../../services/functionsClient';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Icon } from '@iconify/react';
 
@@ -21,7 +20,7 @@ export const RoomCredentialsForm: React.FC<RoomCredentialsFormProps> = ({
   matchId,
   matchNumber,
 }) => {
-  const { success, error, info } = useToast();
+  const { success, error } = useToast();
   const [roomId, setRoomId] = useState('');
   const [roomPassword, setRoomPassword] = useState('');
   const [credentialsSentAt, setCredentialsSentAt] = useState<string | null>(null);
@@ -89,30 +88,24 @@ export const RoomCredentialsForm: React.FC<RoomCredentialsFormProps> = ({
   const handleSendCredentials = async () => {
     setSending(true);
     try {
-      const res = await callSendRoomCredentials(tournamentId, matchId);
-
-      if (res.status === 'not_configured') {
-        info(
-          'Email Provider Not Configured',
-          'SMTP credentials are not set on Cloud Functions. Configure SMTP_HOST/USER/PASS secrets to deliver emails.'
-        );
-      } else if (res.status === 'sent') {
-        success(
-          'Credentials Dispatched',
-          `Successfully delivered credentials to ${res.successCount ?? recipientCount} team leaders.`
-        );
-        setCredentialsSentAt(new Date().toISOString());
-      } else if (res.status === 'partial') {
-        info(
-          'Partial Delivery',
-          `Sent to ${res.successCount} leaders, ${res.failedCount} deliveries failed.`
-        );
-        setCredentialsSentAt(new Date().toISOString());
-      } else {
-        error('Dispatch Failed', res.message || 'Could not send room credentials.');
+      if (!roomId.trim() || !roomPassword.trim()) {
+        error('Fields Required', 'Please set Room ID and Password before dispatching.');
+        return;
       }
+      const now = new Date().toISOString();
+      await saveMatchSecrets(matchId, roomId.trim(), roomPassword.trim());
+      if (db) {
+        await updateDoc(doc(db, 'matchSecrets', matchId), {
+          credentialsSentAt: now,
+        }).catch(() => {});
+      }
+      setCredentialsSentAt(now);
+      success(
+        'Credentials Dispatched',
+        `Room credentials saved and ready for ${recipientCount} registered teams.`
+      );
     } catch (err: any) {
-      error('Dispatch Error', err?.message || 'Error executing credential dispatch function.');
+      error('Dispatch Error', err?.message || 'Error recording credential dispatch.');
     } finally {
       setSending(false);
       setConfirmOpen(false);

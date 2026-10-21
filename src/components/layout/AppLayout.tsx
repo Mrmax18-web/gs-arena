@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TwistRibbon } from '../backgrounds/TwistRibbon';
@@ -8,6 +8,7 @@ import { useGame } from '../../context/GameContext';
 import { Icon } from '@iconify/react';
 import { useAppearance } from '../../hooks/useAppearance';
 import { Button } from '../ui/Button';
+import { LoadingSpinner } from '../ui/LoadingSpinner';
 
 export const AppLayout: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -111,7 +112,9 @@ export const AppLayout: React.FC = () => {
         >
           <ErrorBoundary>
             <div className="w-full h-full relative z-10">
-              <Outlet />
+              <Suspense fallback={<LoadingSpinner label="Loading Arena..." />}>
+                <Outlet />
+              </Suspense>
             </div>
           </ErrorBoundary>
         </main>

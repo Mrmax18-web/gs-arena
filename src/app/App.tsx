@@ -1,14 +1,17 @@
-import React from 'react';
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
-import { appRoutes } from './routes';
+import React, { Suspense } from 'react';
+import { BrowserRouter } from 'react-router-dom';
+import { AppRoutes } from './routes';
 import { AppProviders } from './providers';
-
-const router = createBrowserRouter(appRoutes);
+import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 
 export const App: React.FC = () => {
   return (
     <AppProviders>
-      <RouterProvider router={router} />
+      <BrowserRouter>
+        <Suspense fallback={<LoadingSpinner label="Loading GS Arena..." />}>
+          <AppRoutes />
+        </Suspense>
+      </BrowserRouter>
     </AppProviders>
   );
 };

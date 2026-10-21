@@ -27,6 +27,7 @@ export const BackgroundProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         (snap) => {
           if (snap.exists()) {
             const data = snap.data();
+            console.log("Snapshot received:", data);
             if (data) {
               setConfig((prev) => ({
                 ...prev,

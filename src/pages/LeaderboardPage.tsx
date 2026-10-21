@@ -12,7 +12,7 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorState } from '../components/ui/ErrorState';
 import { Button } from '../components/ui/Button';
-import { where } from 'firebase/firestore';
+import { where, limit } from 'firebase/firestore';
 
 export const LeaderboardPage: React.FC = () => {
   const { gameId, game } = useGame();
@@ -20,8 +20,8 @@ export const LeaderboardPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const urlTournamentId = searchParams.get('t') || '';
 
-  // Load tournaments matching active game
-  const constraints = useMemo(() => [where('gameId', '==', gameId)], [gameId]);
+  // Load tournaments matching active game with limit
+  const constraints = useMemo(() => [where('gameId', '==', gameId), limit(50)], [gameId]);
   const {
     data: tournaments,
     loading: tournamentsLoading,
@@ -237,3 +237,6 @@ export const LeaderboardPage: React.FC = () => {
     </div>
   );
 };
+
+export default LeaderboardPage;
+

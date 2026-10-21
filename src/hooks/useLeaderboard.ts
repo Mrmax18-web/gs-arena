@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '../lib/firebase';
 import { matchConverter, teamConverter } from '../lib/converters';
 import { AwardWinner, Match, ScoringSnapshot, Team, TournamentStandingsRow } from '../types/tournament';
@@ -50,7 +50,7 @@ export function useLeaderboard({
     const matchesRef = collection(db, 'tournaments', tournamentId, 'matches').withConverter(
       matchConverter
     );
-    const matchesQuery = query(matchesRef, orderBy('matchNumber', 'asc'));
+    const matchesQuery = query(matchesRef, orderBy('matchNumber', 'asc'), limit(50));
 
     const unsubMatches = onSnapshot(
       matchesQuery,
@@ -59,6 +59,7 @@ export function useLeaderboard({
         snapshot.forEach((doc) => {
           if (doc.data()) items.push(doc.data());
         });
+        console.log("Snapshot received:", items);
         setMatches(items);
         setLastUpdated(new Date().toLocaleTimeString());
         setLoading(false);
@@ -74,14 +75,16 @@ export function useLeaderboard({
     const teamsRef = collection(db, 'tournaments', tournamentId, 'teams').withConverter(
       teamConverter
     );
+    const teamsQuery = query(teamsRef, limit(50));
 
     const unsubTeams = onSnapshot(
-      teamsRef,
+      teamsQuery,
       (snapshot) => {
         const items: Team[] = [];
         snapshot.forEach((doc) => {
           if (doc.data()) items.push(doc.data());
         });
+        console.log("Snapshot received:", items);
         setTeams(items);
       },
       (err) => {

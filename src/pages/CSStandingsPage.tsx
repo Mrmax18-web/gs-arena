@@ -12,14 +12,14 @@ import { Button } from '../components/ui/Button';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { CANONICAL_GAMES } from '../lib/constants';
-import { where } from 'firebase/firestore';
+import { where, limit } from 'firebase/firestore';
 import { Icon } from '@iconify/react';
 
 export const CSStandingsPage: React.FC = () => {
   const { gameId, setGameId } = useGame();
   const csConfig = CANONICAL_GAMES.FF_CS;
 
-  const constraints = useMemo(() => [where('gameId', '==', 'FF_CS')], []);
+  const constraints = useMemo(() => [where('gameId', '==', 'FF_CS'), limit(50)], []);
   const { data: tournaments, loading: tLoading } = useFirestoreCollection<Tournament>(
     'tournaments',
     constraints,
@@ -138,3 +138,6 @@ export const CSStandingsPage: React.FC = () => {
     </div>
   );
 };
+
+export default CSStandingsPage;
+

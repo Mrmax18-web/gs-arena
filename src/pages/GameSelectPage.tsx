@@ -539,3 +539,6 @@ export const GameSelectPage: React.FC = () => {
     </div>
   );
 };
+
+export default GameSelectPage;
+

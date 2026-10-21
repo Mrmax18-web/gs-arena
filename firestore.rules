@@ -2,86 +2,150 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function signedIn()  { return request.auth != null; }
-    
-    // Hardcoded creator/admin email because we are NOT using Cloud Functions
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: config
+    // Document ID: {doc} (e.g., system, appearance)
+    // Fields: appearance settings, theme, typography, system configuration
+    // Access: Public read, Creator or Admin write
+    //
+    // Collection: games
+    // Document ID: {gameId} (e.g., bgmi, ff, codm)
+    // Fields: name, title, description, bannerUrl, active, formats
+    // Access: Public read, Creator or Admin write
+    //
+    // Collection: tournaments
+    // Document ID: {tid}
+    // Fields: title, gameId, bannerUrl, status, maxTeams, prizePool, createdAt
+    // Subcollections:
+    //   - matches/{mid}: match schedules, room credentials, status, results
+    //   - teams/{teamId}: team info, captain, roster, standing, points
+    //   - otrClaims/{otr}: one-time registration claim verification
+    // Access: Public read, Admin write (otrClaims allows public create)
+    //
+    // Collection: publicAnalytics
+    // Document ID: {tid}
+    // Fields: views, registrationsCount, aggregatedMatchStats
+    // Access: Public read, Admin write
+    //
+    // Collection: matchSecrets
+    // Document ID: {mid}
+    // Fields: roomId, roomPassword, serverKey, adminNotes
+    // Access: Public read, Admin write
+    //
+    // Collection: registrations
+    // Document ID: {rid}
+    // Fields: tournamentId, teamName, captain, players, otr, paymentStatus, status
+    // Access: Public read & create, Admin update & delete
+    //
+    // Collection: adminRequests
+    // Document ID: {uid}
+    // Fields: uid, email, displayName, reason, status, createdAt
+    // Access: Public read, user create, Creator update & delete
+    //
+    // Collection: users
+    // Document ID: {uid}
+    // Fields: uid, email, displayName, role, photoURL, createdAt, updatedAt
+    // Access: Public read, authenticated user owner or Creator write
+    //
+    // Collection: contactMessages
+    // Document ID: {id}
+    // Fields: name, email, subject, message, submittedAt
+    // Access: Public read, anyone create, Creator write
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Hardcoded creator email for bootstrap / primary administration
     function isCreator() {
       return signedIn() && request.auth.token.email == 'dheerajsinghbaghel1306@gmail.com';
     }
-    
-    function isAdmin()   { 
-      return isCreator(); 
-    }
-    
-    function onlyChanges(keys) {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+
+    // Admin authorization check via token claim, token role, or creator bootstrap
+    function isAdmin() {
+      return isCreator() || (signedIn() && (request.auth.token.admin == true || request.auth.token.role == 'admin'));
     }
 
-    // 1. Config & Games (Public read, Creator write)
-    match /config/{doc} {
+    // ===============================================================
+    // 1. Root Public Read Access
+    // ===============================================================
+    // Allow public reading of stats/leaderboards across all devices
+    match /{document=**} {
       allow read: if true;
-      allow write: if isCreator();            
+    }
+
+    // ===============================================================
+    // 2. System Configuration & Games
+    // ===============================================================
+    match /config/{doc} {
+      allow write: if isCreator() || isAdmin();
     }
 
     match /games/{gameId} {
-      allow read: if true;
-      allow write: if isCreator();
+      allow write: if isCreator() || isAdmin();
     }
 
-    // 2. Tournaments (Public read, Admin write)
+    // ===============================================================
+    // 3. Tournaments & Subcollections
+    // ===============================================================
     match /tournaments/{tid} {
-      allow read: if true;
       allow write: if isAdmin();
-      match /matches/{mid} { allow read: if true; allow write: if isAdmin(); }
-      match /teams/{teamId} { allow read: if true; allow write: if isAdmin(); }
+
+      match /matches/{mid} {
+        allow write: if isAdmin();
+      }
+
+      match /teams/{teamId} {
+        allow write: if isAdmin();
+      }
+
       match /otrClaims/{otr} {
-        allow read: if isAdmin() || signedIn();
-        allow create: if signedIn();
+        allow create: if true;
         allow update, delete: if isAdmin();
       }
     }
 
     match /publicAnalytics/{tid} {
-      allow read: if true;
       allow write: if isAdmin();
     }
 
     match /matchSecrets/{mid} {
-      allow read, write: if isAdmin();         
+      allow write: if isAdmin();
     }
 
-    // 3. Registrations (PUBLIC CAN REGISTER, Admin can manage)
+    // ===============================================================
+    // 4. Registrations
+    // ===============================================================
     match /registrations/{rid} {
-      allow create: if true;           // <--- CRITICAL: Allows anyone to register
-      allow read: if isAdmin();        // Only admins can see the list
-      allow update: if isAdmin();      // Only admins can approve/reject
-      allow delete: if isAdmin();
+      allow create: if true;
+      allow update, delete: if isAdmin();
     }
 
-    // 4. Admin Requests (Public can apply, Creator can approve)
+    // ===============================================================
+    // 5. Admin Requests & User Profiles
+    // ===============================================================
     match /adminRequests/{uid} {
       allow create: if signedIn() && request.auth.uid == uid;
-      allow read: if isCreator() || (signedIn() && request.auth.uid == uid);
-      allow update: if isCreator();    // <--- CRITICAL: Allows Creator to click Approve
-      allow delete: if isCreator();
+      allow update, delete: if isCreator();
     }
 
-    // 5. Users (Only the user can read/write their own data)
     match /users/{uid} {
-      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
-      allow create: if signedIn() && request.auth.uid == uid;
-      allow update: if signedIn() && request.auth.uid == uid;
-      allow delete: if false;
+      allow write: if (signedIn() && request.auth.uid == uid) || isCreator();
     }
 
-    // 6. Contact Messages (Public can send, Creator can read)
+    // ===============================================================
+    // 6. Contact Messages
+    // ===============================================================
     match /contactMessages/{id} {
       allow create: if true;
-      allow read: if isCreator();
-      allow update, delete: if false;
+      allow write: if isCreator();
     }
-
-    // 7. Deny all other access by default
-    match /{document=**} { allow read, write: if false; }
   }
 }

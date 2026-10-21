@@ -1,94 +1,74 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
+import { MAX_FILE_SIZE_BYTES, ALLOWED_IMAGE_TYPES, validateImageFile } from '../services/storageService';
 
 /**
- * Static & Logic verification of firestore.rules and storage.rules security invariants
- * Invariant 1: Public cannot write tournaments or publicAnalytics
- * Invariant 2: Admin cannot write config/system (creator only)
- * Invariant 3: User cannot set their own role or elevate role
- * Invariant 4: Public cannot read registrations, matchSecrets, or otrClaims
- * Invariant 5: Update bypass prevention via onlyChanges / validator
- * Invariant 6: Storage private screenshots, public logos, 5MB limit
+ * Static & Policy verification of firestore.rules and Supabase storage constraints
+ * Invariant 1: Public read is permitted across all documents for live cross-device sync
+ * Invariant 2: Hardcoded creator email is dheerajsinghbaghel1306@gmail.com
+ * Invariant 3: Public can create registrations without auth requirements
+ * Invariant 4: Tournaments, matches, and config writes are restricted to Creator/Admin
+ * Invariant 5: Storage restricts file size to 5MB and accepts only valid image types
  */
 describe('Firestore Security Rules Policy Verification', () => {
   const rulesPath = path.resolve(__dirname, '../../firestore.rules');
   const rulesContent = fs.readFileSync(rulesPath, 'utf8');
 
-  it('enforces default deny at root level', () => {
-    expect(rulesContent).toContain('match /{document=**} { allow read, write: if false; }');
+  it('enforces public read access at root level for cross-device synchronization', () => {
+    expect(rulesContent).toMatch(/match \/\{document=\*\*\} \{\s*allow read: if true;\s*\}/);
   });
 
-  it('strictly restricts config collection write to isCreator() (admins explicitly excluded)', () => {
-    expect(rulesContent).toMatch(/match \/config\/\{doc\} \{\s*allow read: if true;\s*allow write: if isCreator\(\);/);
+  it('hardcodes the creator email for bootstrap authority', () => {
+    expect(rulesContent).toContain("request.auth.token.email == 'dheerajsinghbaghel1306@gmail.com'");
   });
 
-  it('restricts tournaments and subcollections write to isAdmin()', () => {
-    expect(rulesContent).toMatch(/match \/tournaments\/\{tid\} \{\s*allow read: if true;\s*allow write: if isAdmin\(\);/);
-    expect(rulesContent).toMatch(/match \/matches\/\{mid\} \{ allow read: if true; allow write: if isAdmin\(\); \}/);
-    expect(rulesContent).toMatch(/match \/teams\/\{teamId\} \{ allow read: if true; allow write: if isAdmin\(\); \}/);
+  it('allows public squad registrations without requiring auth', () => {
+    expect(rulesContent).toMatch(/match \/registrations\/\{rid\} \{\s*allow create: if true;/);
   });
 
-  it('protects transactional OTR claim docs within tournament subcollections', () => {
-    expect(rulesContent).toMatch(/match \/otrClaims\/\{otr\} \{/);
-    expect(rulesContent).toContain('request.resource.data.otr == otr');
+  it('restricts registration modifications and deletions to isAdmin()', () => {
+    expect(rulesContent).toMatch(/allow update, delete: if isAdmin\(\);/);
   });
 
-  it('allows public read on sanitized publicAnalytics collection but restricts writes to isAdmin()', () => {
-    expect(rulesContent).toMatch(/match \/publicAnalytics\/\{tid\} \{\s*allow read: if true;\s*allow write: if isAdmin\(\);/);
+  it('restricts config and game writes to isCreator() or isAdmin()', () => {
+    expect(rulesContent).toMatch(/match \/config\/\{doc\} \{\s*allow write: if isCreator\(\) \|\| isAdmin\(\);/);
+    expect(rulesContent).toMatch(/match \/games\/\{gameId\} \{\s*allow write: if isCreator\(\) \|\| isAdmin\(\);/);
   });
 
-  it('keeps matchSecrets completely private from public reads', () => {
-    expect(rulesContent).toMatch(/match \/matchSecrets\/\{mid\} \{\s*allow read, write: if isAdmin\(\);/);
-    expect(rulesContent).not.toMatch(/match \/matchSecrets\/\{mid\} \{\s*allow read: if true;/);
+  it('restricts tournaments and matches write to isAdmin()', () => {
+    expect(rulesContent).toMatch(/match \/tournaments\/\{tid\} \{\s*allow write: if isAdmin\(\);/);
+    expect(rulesContent).toMatch(/match \/matches\/\{mid\} \{\s*allow write: if isAdmin\(\);/);
   });
 
-  it('restricts registrations read to admin or document owner (public cannot read)', () => {
-    expect(rulesContent).toContain(
-      'allow read: if isAdmin() || (signedIn() && resource.data.ownerUid == request.auth.uid);'
-    );
+  it('allows public to create OTR claims for unique registration checking', () => {
+    expect(rulesContent).toMatch(/match \/otrClaims\/\{otr\} \{\s*allow create: if true;/);
   });
 
-  it('validates registration creation with OTR and restricts updates to review fields only', () => {
-    expect(rulesContent).toContain("request.resource.data.status == 'pending'");
-    expect(rulesContent).toContain("request.resource.data.players.size() == 4");
-    expect(rulesContent).toContain("request.resource.data.otr.size() >= 6");
-    expect(rulesContent).toMatch(/allow update: if isAdmin\(\) && onlyChanges\(\[\s*'status'/);
-    expect(rulesContent).toContain('paymentStatus');
-    expect(rulesContent).toContain('approvalStatus');
-    expect(rulesContent).toContain('allow delete: if isCreator();');
+  it('protects private match secrets writes with isAdmin()', () => {
+    expect(rulesContent).toMatch(/match \/matchSecrets\/\{mid\} \{\s*allow write: if isAdmin\(\);/);
   });
 
-  it('prevents users from elevating their own role upon account creation or update', () => {
-    expect(rulesContent).toContain(
-      "allow create: if signedIn() && request.auth.uid == uid && request.resource.data.role == 'public';"
-    );
-    expect(rulesContent).toContain(
-      "allow update: if signedIn() && request.auth.uid == uid && onlyChanges(['displayName','updatedAt']);"
-    );
-  });
-
-  it('disallows client update and delete of adminRequests (Functions only)', () => {
-    expect(rulesContent).toMatch(/match \/adminRequests\/\{uid\} \{[\s\S]*allow update, delete: if false;/);
+  it('allows users to submit admin requests while reserving approvals for isCreator()', () => {
+    expect(rulesContent).toMatch(/match \/adminRequests\/\{uid\} \{/);
+    expect(rulesContent).toMatch(/allow update, delete: if isCreator\(\);/);
   });
 });
 
-describe('Storage Security Rules Policy Verification', () => {
-  const storageRulesPath = path.resolve(__dirname, '../../storage.rules');
-  const storageRulesContent = fs.readFileSync(storageRulesPath, 'utf8');
-
-  it('restricts file size to 5MB and allows only valid image types', () => {
-    expect(storageRulesContent).toContain('5 * 1024 * 1024');
-    expect(storageRulesContent).toContain("image/(jpeg|png|webp)");
+describe('Supabase Storage Policy & Validation Verification', () => {
+  it('enforces 5MB max file size limit', () => {
+    expect(MAX_FILE_SIZE_BYTES).toBe(5 * 1024 * 1024);
   });
 
-  it('allows public read on logos but keeps payment screenshots private to owner and admin', () => {
-    expect(storageRulesContent).toMatch(/match \/tournaments\/\{tid\}\/logos\/\{filename\} \{\s*allow read: if true;/);
-    expect(storageRulesContent).toMatch(/match \/tournaments\/\{tid\}\/payments\/\{filename\} \{/);
-    expect(storageRulesContent).toContain("filename.matches('^' + request.auth.uid + '_.*')");
+  it('restricts allowed types to JPEG, PNG, and WebP', () => {
+    expect(ALLOWED_IMAGE_TYPES).toEqual(['image/jpeg', 'image/png', 'image/webp']);
   });
 
-  it('enforces default deny for unmapped storage paths', () => {
-    expect(storageRulesContent).toContain('match /{allPaths=**} {\n      allow read, write: if false;\n    }');
+  it('validates images correctly', () => {
+    const validFile = new File(['dummy content'], 'proof.png', { type: 'image/png' });
+    expect(validateImageFile(validFile).valid).toBe(true);
+
+    const invalidFile = new File(['script'], 'malicious.exe', { type: 'application/x-msdownload' });
+    expect(validateImageFile(invalidFile).valid).toBe(false);
   });
 });

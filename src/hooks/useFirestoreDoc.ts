@@ -34,11 +34,9 @@ export function useFirestoreDoc<T>(
       const unsubscribe = onSnapshot(
         docRef,
         (snap) => {
-          if (snap.exists()) {
-            setData(snap.data() as T);
-          } else {
-            setData(null);
-          }
+          const docData = snap.exists() ? (snap.data() as T) : null;
+          console.log("Snapshot received:", docData);
+          setData(docData);
           setLoading(false);
         },
         (err) => {
