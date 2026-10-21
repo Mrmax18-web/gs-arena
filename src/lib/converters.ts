@@ -167,10 +167,15 @@ export const registrationConverter: FirestoreDataConverter<Registration> = {
     const payment = reg.paymentStatus ?? 'pending';
     return {
       tournamentId: reg.tournamentId,
+      gameId: reg.gameId ?? null,
       teamName: reg.teamName,
+      leaderName: reg.leaderName ?? '',
       leaderEmail: reg.leaderEmail,
-      players: reg.players,
-      ownerUid: reg.ownerUid,
+      leaderPhone: reg.leaderPhone ?? '',
+      players: (reg.players || []).map((p) =>
+        typeof p === 'string' ? { name: p, uid: '' } : { name: p.name, uid: String(p.uid || '').trim() }
+      ),
+      ownerUid: reg.ownerUid ?? null,
       status: approval,
       approvalStatus: approval,
       paymentStatus: payment,
@@ -196,9 +201,18 @@ export const registrationConverter: FirestoreDataConverter<Registration> = {
     return {
       id: snapshot.id,
       tournamentId: data?.tournamentId ?? '',
+      gameId: data?.gameId ?? undefined,
       teamName: data?.teamName ?? '',
+      leaderName: data?.leaderName ?? '',
       leaderEmail: data?.leaderEmail ?? '',
-      players: Array.isArray(data?.players) ? data.players : [],
+      leaderPhone: data?.leaderPhone ?? '',
+      players: Array.isArray(data?.players)
+        ? data.players.map((p: any) =>
+            typeof p === 'string'
+              ? { name: p, uid: '' }
+              : { name: p?.name ?? '', uid: String(p?.uid ?? '') }
+          )
+        : [],
       ownerUid: data?.ownerUid ?? '',
       status: resolvedApproval,
       approvalStatus: resolvedApproval,

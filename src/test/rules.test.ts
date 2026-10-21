@@ -15,16 +15,20 @@ describe('Firestore Security Rules Policy Verification', () => {
   const rulesPath = path.resolve(__dirname, '../../firestore.rules');
   const rulesContent = fs.readFileSync(rulesPath, 'utf8');
 
-  it('enforces public read access at root level for cross-device synchronization', () => {
+  it('enforces public read access at root level and explicit tournament paths for cross-device synchronization', () => {
     expect(rulesContent).toMatch(/match \/\{document=\*\*\} \{\s*allow read: if true;\s*\}/);
+    expect(rulesContent).toMatch(/match \/tournaments\/\{tid\}\/\{document=\*\*\} \{\s*allow read: if true;\s*\}/);
   });
 
   it('hardcodes the creator email for bootstrap authority', () => {
     expect(rulesContent).toContain("request.auth.token.email == 'dheerajsinghbaghel1306@gmail.com'");
   });
 
-  it('allows public squad registrations without requiring auth', () => {
-    expect(rulesContent).toMatch(/match \/registrations\/\{rid\} \{\s*allow create: if true;/);
+  it('allows public squad registrations without auth using anti-spam field validation', () => {
+    expect(rulesContent).toMatch(/match \/registrations\/\{rid\} \{\s*allow create: if isValidRegistration\(request\.resource\.data\);/);
+    expect(rulesContent).toContain("data.keys().hasAll(['tournamentId', 'teamName', 'leaderEmail', 'leaderPhone', 'players', 'status'])");
+    expect(rulesContent).toContain("data.status == 'pending'");
+    expect(rulesContent).toContain("data.players.size() == 4");
   });
 
   it('restricts registration modifications and deletions to isAdmin()', () => {

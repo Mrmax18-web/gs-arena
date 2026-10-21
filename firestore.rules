@@ -37,8 +37,8 @@ service cloud.firestore {
     //
     // Collection: registrations
     // Document ID: {rid}
-    // Fields: tournamentId, teamName, captain, players, otr, paymentStatus, status
-    // Access: Public read & create, Admin update & delete
+    // Fields: tournamentId, teamName, leaderName, leaderEmail, leaderPhone, players, otr, paymentStatus, status
+    // Access: Public read, validated public create (no auth required), Admin update & delete
     //
     // Collection: adminRequests
     // Document ID: {uid}
@@ -73,11 +73,32 @@ service cloud.firestore {
       return isCreator() || (signedIn() && (request.auth.token.admin == true || request.auth.token.role == 'admin'));
     }
 
+    // Validation for public team registration (anti-spam, integrity)
+    function isValidRegistration(data) {
+      return data.keys().hasAll(['tournamentId', 'teamName', 'leaderEmail', 'leaderPhone', 'players', 'status']) &&
+             data.status == 'pending' &&
+             data.players is list &&
+             data.players.size() == 4 &&
+             data.teamName is string &&
+             data.teamName.size() >= 2 &&
+             data.teamName.size() <= 60 &&
+             data.leaderEmail is string &&
+             data.leaderEmail.size() <= 100 &&
+             data.leaderPhone is string &&
+             data.leaderPhone.size() >= 10 &&
+             data.leaderPhone.size() <= 20;
+    }
+
     // ===============================================================
-    // 1. Root Public Read Access
+    // 1. Root & Tournament Public Read Access
     // ===============================================================
     // Allow public reading of stats/leaderboards across all devices
     match /{document=**} {
+      allow read: if true;
+    }
+
+    // Explicit recursive public read for tournaments, matches, and teams
+    match /tournaments/{tid}/{document=**} {
       allow read: if true;
     }
 
@@ -124,7 +145,7 @@ service cloud.firestore {
     // 4. Registrations
     // ===============================================================
     match /registrations/{rid} {
-      allow create: if true;
+      allow create: if isValidRegistration(request.resource.data);
       allow update, delete: if isAdmin();
     }
 

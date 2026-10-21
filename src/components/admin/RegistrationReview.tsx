@@ -92,7 +92,9 @@ export const RegistrationReview: React.FC<RegistrationReviewProps> = ({
       // Sheet 1: Teams
       const teamsData = registrations.map((r) => ({
         'Team Name': r.teamName,
+        'Leader Name': r.leaderName || '',
         'Leader Email': r.leaderEmail,
+        'Leader Phone': r.leaderPhone || '',
         'OTR (Transaction Reference)': r.otr ? String(r.otr) : 'N/A',
         'Payment Status': (r.paymentStatus || 'pending').toUpperCase(),
         'Squad Approval Status': (r.approvalStatus || r.status || 'pending').toUpperCase(),
@@ -106,7 +108,7 @@ export const RegistrationReview: React.FC<RegistrationReviewProps> = ({
       // Force OTR column to be treated as text to avoid truncation / scientific notation
       const range = XLSX.utils.decode_range(teamsWs['!ref'] || 'A1');
       for (let R = 1; R <= range.e.r; ++R) {
-        const cellAddress = XLSX.utils.encode_cell({ r: R, c: 2 }); // Column C is OTR
+        const cellAddress = XLSX.utils.encode_cell({ r: R, c: 4 }); // Column E is OTR (after Team, Leader Name, Leader Email, Leader Phone)
         if (teamsWs[cellAddress]) {
           teamsWs[cellAddress].t = 's'; // string type
         }
@@ -118,7 +120,8 @@ export const RegistrationReview: React.FC<RegistrationReviewProps> = ({
       const playersData: Array<{
         'Team Name': string;
         'Player Slot': number;
-        'In-Game ID': string;
+        'Player Name': string;
+        'In-Game UID': string;
         'Tournament ID': string;
         'Payment Status': string;
         'Approval Status': string;
@@ -126,10 +129,13 @@ export const RegistrationReview: React.FC<RegistrationReviewProps> = ({
 
       registrations.forEach((r) => {
         (r.players || []).forEach((player, idx) => {
+          const pName = typeof player === 'string' ? player : player.name;
+          const pUid = typeof player === 'string' ? '' : player.uid;
           playersData.push({
             'Team Name': r.teamName,
             'Player Slot': idx + 1,
-            'In-Game ID': player,
+            'Player Name': pName,
+            'In-Game UID': pUid,
             'Tournament ID': r.tournamentId,
             'Payment Status': (r.paymentStatus || 'pending').toUpperCase(),
             'Approval Status': (r.approvalStatus || r.status || 'pending').toUpperCase(),
@@ -208,12 +214,17 @@ export const RegistrationReview: React.FC<RegistrationReviewProps> = ({
                         <span className="font-extrabold text-base text-slate-900 dark:text-white">
                           {reg.teamName}
                         </span>
+                        {reg.leaderName && (
+                          <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
+                            (Leader: {reg.leaderName})
+                          </span>
+                        )}
                         <span className="text-[11px] text-slate-400">
                           &bull; {new Date(reg.createdAt).toLocaleDateString()}
                         </span>
                       </div>
                       <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                        {reg.leaderEmail}
+                        {reg.leaderEmail} {reg.leaderPhone ? `• 📞 ${reg.leaderPhone}` : ''}
                       </p>
                     </div>
                   </div>
@@ -262,15 +273,26 @@ export const RegistrationReview: React.FC<RegistrationReviewProps> = ({
                       Roster Players (4)
                     </span>
                     <div className="grid grid-cols-2 gap-1.5">
-                      {(reg.players || []).map((p, idx) => (
-                        <div
-                          key={idx}
-                          className="px-2 py-1 rounded bg-black/5 dark:bg-white/10 text-xs font-mono text-slate-800 dark:text-slate-200 truncate"
-                        >
-                          <span className="text-slate-400 text-[10px] mr-1">#{idx + 1}</span>
-                          {p}
-                        </div>
-                      ))}
+                      {(reg.players || []).map((p, idx) => {
+                        const pName = typeof p === 'string' ? p : p.name;
+                        const pUid = typeof p === 'string' ? '' : p.uid;
+                        return (
+                          <div
+                            key={idx}
+                            className="px-2 py-1.5 rounded bg-black/5 dark:bg-white/10 text-xs font-mono text-slate-800 dark:text-slate-200"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-400 text-[10px] mr-1">#{idx + 1}</span>
+                              <span className="truncate font-semibold">{pName}</span>
+                            </div>
+                            {pUid && (
+                              <span className="text-[10px] text-amber-500 block truncate font-mono mt-0.5">
+                                UID: {pUid}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
 

@@ -101,3 +101,26 @@ Executed Playwright against a production build across 4 mobile viewports:
 - `npm run typecheck` (`tsc --noEmit`): **0 errors**
 - `npm run lint` (`eslint .`): **0 errors, 0 warnings**
 - `npm run build` (`vite build`): **Production bundle compiled cleanly in 5.95s**
+
+---
+
+## 5. Changes in This Session (Public Registration & Realtime Sync Fixes)
+
+### Summary of Changes
+1. **Public Registration Decoupled from Firebase Auth (Task 1)**:
+   - Completely removed `useAuth` dependency and `user` state from [`src/components/registration/RegistrationForm.tsx`](src/components/registration/RegistrationForm.tsx). Public players never authenticate (resolving `auth/admin-restricted-operation`).
+   - Registration now writes directly to the `registrations` Firestore collection with `addDoc`, assigning `createdAt: serverTimestamp()`, `status: "pending"`, and `approvalStatus: "pending"`.
+   - Added contextual error logging and clear inline success/error feedback with team name, leader email, phone, and registration ID.
+
+2. **Form Fields & Game Selector (Task 2)**:
+   - Added top Game Selector (`BGMI` | `Free Fire BR` | `Free Fire CS`) that dynamically resolves open tournaments matching the title.
+   - Added Team Leader fields: Name (required, min 2 chars), Email (validated), and Phone (validated 10-digit Indian mobile format `/^[6-9]\d{9}$/`).
+   - Added 4-player roster inputs with Player Name and In-Game UID (numeric string, 4–16 digits), enforcing uniqueness across all 4 squad members.
+   - Updated TypeScript definitions in [`src/types/registration.ts`](src/types/registration.ts), schema validators in [`src/lib/validators.ts`](src/lib/validators.ts), converters in [`src/lib/converters.ts`](src/lib/converters.ts), and registration service in [`src/services/registrationService.ts`](src/services/registrationService.ts).
+   - Updated Admin Registration Review ([`src/components/admin/RegistrationReview.tsx`](src/components/admin/RegistrationReview.tsx)) cards and Excel export sheets (`Teams` with Leader Phone, `Players` with In-Game UID).
+
+3. **Firestore Cross-Device Real-Time Sync (Task 3)**:
+   - Verified `initializeFirestore` in [`src/lib/firebase.ts`](src/lib/firebase.ts) uses `{ experimentalAutoDetectLongPolling: true }`.
+   - Converted one-time `getDocs` read in [`src/components/admin/RoomCredentialsForm.tsx`](src/components/admin/RoomCredentialsForm.tsx) to a real-time `onSnapshot` listener with cleanup.
+   - Updated `firestore.rules` with explicit recursive public reads for `tournaments` (`match /tournaments/{tid}/{document=**} { allow read: if true; }`) and anti-spam validation on `registrations/{rid}` create (`isValidRegistration`).
+

@@ -8,14 +8,14 @@ import { RegistrationForm } from '../components/registration/RegistrationForm';
 import { Skeleton } from '../components/ui/Skeleton';
 import { ErrorState } from '../components/ui/ErrorState';
 import { ErrorBoundary } from '../components/layout/ErrorBoundary';
-import { where, limit } from 'firebase/firestore';
+import { limit } from 'firebase/firestore';
 
 export const RegistrationPage: React.FC = () => {
-  const { gameId, game } = useGame();
+  const { game } = useGame();
   const [searchParams] = useSearchParams();
   const tParam = searchParams.get('t') || undefined;
 
-  const constraints = useMemo(() => [where('gameId', '==', gameId), limit(50)], [gameId]);
+  const constraints = useMemo(() => [limit(50)], []);
   const {
     data: tournaments,
     loading,

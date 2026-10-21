@@ -7,8 +7,52 @@ import {
 
 export const OTR_REGEX = /^[A-Z0-9_-]{6,40}$/;
 
+export const PlayerObjectSchema = z.object({
+  name: z
+    .string()
+    .transform(sanitizeInputString)
+    .pipe(
+      z
+        .string()
+        .min(2, 'Player name/ID must be at least 2 characters')
+        .max(30, 'Player name/ID cannot exceed 30 characters')
+        .refine((v) => !containsScriptTag(v), {
+          message: 'Player name/ID cannot contain script tags or markup',
+        })
+        .refine((v) => !containsProfanity(v), {
+          message: 'Player name/ID contains prohibited or abusive language',
+        })
+    ),
+  uid: z
+    .string()
+    .trim()
+    .min(4, 'In-Game UID must be at least 4 digits')
+    .max(16, 'In-Game UID cannot exceed 16 digits')
+    .regex(/^\d+$/, 'In-Game UID must contain only digits'),
+});
+
+export const PlayerItemSchema = z.union([
+  PlayerObjectSchema,
+  z
+    .string()
+    .transform(sanitizeInputString)
+    .pipe(
+      z
+        .string()
+        .min(2, 'Player name/ID must be at least 2 characters')
+        .max(30, 'Player name/ID cannot exceed 30 characters')
+        .refine((v) => !containsScriptTag(v), {
+          message: 'Player ID cannot contain script tags or markup',
+        })
+        .refine((v) => !containsProfanity(v), {
+          message: 'Player ID contains prohibited or abusive language',
+        })
+    ),
+]);
+
 export const RegistrationSchema = z.object({
   tournamentId: z.string().min(1, 'Please select a tournament'),
+  gameId: z.string().optional(),
   teamName: z
     .string()
     .transform(sanitizeInputString)
@@ -24,34 +68,55 @@ export const RegistrationSchema = z.object({
           message: 'Team name contains prohibited or abusive language',
         })
     ),
+  leaderName: z
+    .string()
+    .transform(sanitizeInputString)
+    .pipe(
+      z
+        .string()
+        .min(2, 'Leader name must be at least 2 characters')
+        .max(50, 'Leader name cannot exceed 50 characters')
+        .refine((v) => !containsScriptTag(v), {
+          message: 'Leader name cannot contain script tags or markup',
+        })
+        .refine((v) => !containsProfanity(v), {
+          message: 'Leader name contains prohibited or abusive language',
+        })
+    )
+    .optional()
+    .default('Team Leader'),
   leaderEmail: z
     .string()
     .email('Please enter a valid email address')
     .max(100, 'Email cannot exceed 100 characters')
     .trim(),
-  players: z
-    .array(
-      z
-        .string()
-        .transform(sanitizeInputString)
-        .pipe(
-          z
-            .string()
-            .min(2, 'Player name/ID must be at least 2 characters')
-            .max(30, 'Player name/ID cannot exceed 30 characters')
-            .refine((v) => !containsScriptTag(v), {
-              message: 'Player ID cannot contain script tags or markup',
-            })
-            .refine((v) => !containsProfanity(v), {
-              message: 'Player ID contains prohibited or abusive language',
-            })
-        )
+  leaderPhone: z
+    .string()
+    .trim()
+    .refine(
+      (val) => !val || /^[6-9]\d{9}$/.test(val.replace(/\s+/g, '').replace(/^\+91/, '')),
+      { message: 'Leader phone must be a valid 10-digit Indian mobile number' }
     )
+    .transform((val) => (val ? val.replace(/\s+/g, '').replace(/^\+91/, '') : '9876543210'))
+    .optional()
+    .default('9876543210'),
+  players: z
+    .array(PlayerItemSchema)
     .length(4, 'Registration requires exactly 4 player IDs')
-    .refine((items) => {
-      const lower = items.map((i) => i.toLowerCase());
-      return new Set(lower).size === lower.length;
-    }, { message: 'Player IDs must be unique within the team' }),
+    .refine(
+      (items) => {
+        const hasUids = items.some((i) => typeof i === 'object' && 'uid' in i && i.uid);
+        if (hasUids) {
+          const uids = items.map((i) => (typeof i === 'object' && 'uid' in i ? i.uid.trim() : ''));
+          return new Set(uids).size === uids.length;
+        }
+        const names = items.map((i) =>
+          typeof i === 'string' ? i.toLowerCase().trim() : i.name.toLowerCase().trim()
+        );
+        return new Set(names).size === names.length;
+      },
+      { message: 'Player IDs must be unique within the team' }
+    ),
   otr: z
     .string()
     .transform(sanitizeInputString)

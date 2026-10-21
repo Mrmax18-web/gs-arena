@@ -1,18 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { collection, addDoc, serverTimestamp, doc, setDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import { Tournament } from '../../types/tournament';
+import { GameId } from '../../types/game';
+import { useGame } from '../../context/GameContext';
 import { GlassCard } from '../ui/GlassCard';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Button } from '../ui/Button';
 import { Stepper, StepItem } from '../ui/Stepper';
 import { InlineNotice } from '../ui/InlineNotice';
-import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../ui/Toast';
 import { RegistrationSchema } from '../../lib/validators';
-import { submitRegistration } from '../../services/registrationService';
 import { uploadFile, deleteStorageFile, validateImageFile } from '../../services/storageService';
-import { MANDATORY_POLICIES } from '../../lib/rulesConstants';
+import { MANDATORY_POLICIES, RULES_VERSION } from '../../lib/rulesConstants';
 import { Icon } from '@iconify/react';
 
 export interface RegistrationFormProps {
@@ -22,128 +24,167 @@ export interface RegistrationFormProps {
 }
 
 const REGISTRATION_STEPS: StepItem[] = [
-  { id: 'details', title: 'Details', description: 'Tournament & Leader' },
+  { id: 'details', title: 'Details', description: 'Game & Leader' },
   { id: 'payment', title: 'Payment', description: 'Fee & Verification' },
   { id: 'players', title: 'Players', description: 'Roster & Compliance' },
 ];
 
+const GAME_OPTIONS: Array<{ id: GameId; label: string; icon: string }> = [
+  { id: 'BGMI', label: 'BGMI', icon: 'solar:gamepad-bold' },
+  { id: 'FF_BR', label: 'Free Fire BR', icon: 'solar:fire-bold' },
+  { id: 'FF_CS', label: 'Free Fire CS', icon: 'solar:shield-bold' },
+];
+
+/**
+ * RegistrationForm enables public competitive teams to register without Firebase Authentication.
+ * Writes directly to the Firestore `registrations` collection via addDoc with serverTimestamp.
+ */
 export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   tournaments,
   defaultTournamentId,
   onSuccess,
 }) => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { gameId: activeGlobalGameId, setGameId: setGlobalGameId } = useGame();
   const { success, error, info } = useToast();
 
-  const openTournaments = tournaments.filter((t) => t.registrationOpen);
-
-  const [tournamentId, setTournamentId] = useState<string>(() => {
-    if (defaultTournamentId && openTournaments.some((t) => t.id === defaultTournamentId)) {
-      return defaultTournamentId;
+  // Find initial tournament if defaultTournamentId provided
+  const initialTournament = useMemo(() => {
+    if (defaultTournamentId) {
+      return tournaments.find((t) => t.id === defaultTournamentId);
     }
-    return openTournaments[0]?.id || '';
+    return undefined;
+  }, [defaultTournamentId, tournaments]);
+
+  // Selected game state
+  const [selectedGame, setSelectedGame] = useState<GameId>(() => {
+    if (initialTournament?.gameId) return initialTournament.gameId;
+    return activeGlobalGameId || 'BGMI';
   });
 
-  useEffect(() => {
-    if (defaultTournamentId && openTournaments.some((t) => t.id === defaultTournamentId)) {
-      setTournamentId(defaultTournamentId);
+  // Filter open tournaments for the selected game
+  const openTournamentsForGame = useMemo(() => {
+    return tournaments.filter((t) => t.registrationOpen && t.gameId === selectedGame);
+  }, [tournaments, selectedGame]);
+
+  // Tournament ID state
+  const [tournamentId, setTournamentId] = useState<string>(() => {
+    if (initialTournament && initialTournament.registrationOpen) {
+      return initialTournament.id;
     }
-  }, [defaultTournamentId, openTournaments]);
+    const matching = tournaments.find((t) => t.registrationOpen && t.gameId === selectedGame);
+    return matching?.id || '';
+  });
 
-  const selectedTournament = openTournaments.find((t) => t.id === tournamentId);
+  // Keep tournament selection updated when game changes
+  const handleGameSelect = (newGameId: GameId) => {
+    setSelectedGame(newGameId);
+    setGlobalGameId(newGameId);
+    const available = tournaments.filter((t) => t.registrationOpen && t.gameId === newGameId);
+    if (available.length > 0) {
+      setTournamentId(available[0].id);
+    } else {
+      setTournamentId('');
+    }
+  };
 
-  // Stepper state (Law 5)
+  const selectedTournament = tournaments.find((t) => t.id === tournamentId);
+
+  // Stepper state
   const [currentStep, setCurrentStep] = useState(0);
   const [maxAccessibleStep, setMaxAccessibleStep] = useState(0);
 
-  // Form fields
+  // Form fields: Team & Leader
   const [teamName, setTeamName] = useState('');
+  const [leaderName, setLeaderName] = useState('');
   const [leaderEmail, setLeaderEmail] = useState('');
-  const [player1, setPlayer1] = useState('');
-  const [player2, setPlayer2] = useState('');
-  const [player3, setPlayer3] = useState('');
-  const [player4, setPlayer4] = useState('');
+  const [leaderPhone, setLeaderPhone] = useState('');
+
+  // Form fields: 4 Players (Name + UID)
+  const [player1Name, setPlayer1Name] = useState('');
+  const [player1Uid, setPlayer1Uid] = useState('');
+  const [player2Name, setPlayer2Name] = useState('');
+  const [player2Uid, setPlayer2Uid] = useState('');
+  const [player3Name, setPlayer3Name] = useState('');
+  const [player3Uid, setPlayer3Uid] = useState('');
+  const [player4Name, setPlayer4Name] = useState('');
+  const [player4Uid, setPlayer4Uid] = useState('');
+
+  // Form fields: Payment & Verification
   const [otr, setOtr] = useState('');
+  const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState('');
+  const [screenshotUploadProgress, setScreenshotUploadProgress] = useState<number | null>(null);
+  const [teamLogoUrl, setTeamLogoUrl] = useState('');
+  const [logoUploadProgress, setLogoUploadProgress] = useState<number | null>(null);
   const [rulesAccepted, setRulesAccepted] = useState(false);
 
-  // Parkinson's Law (Pre-fill & Auto-fill)
-  useEffect(() => {
-    // If user is authenticated, pre-fill email if empty
-    if (user?.email && !leaderEmail) {
-      setLeaderEmail(user.email);
-    }
-  }, [user, leaderEmail]);
-
-  const [backupForm, setBackupForm] = useState<{
+  // Submission & UI status
+  const [submitting, setSubmitting] = useState(false);
+  const [submittedData, setSubmittedData] = useState<{
     teamName: string;
+    leaderName: string;
     leaderEmail: string;
-    player1: string;
-    player2: string;
-    player3: string;
-    player4: string;
+    leaderPhone: string;
+    tournamentName: string;
+    registrationId: string;
   } | null>(null);
+
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [stepError, setStepError] = useState<string | null>(null);
+
+  // Auto-fill test data helper
+  const [backupForm, setBackupForm] = useState<Record<string, string> | null>(null);
   const [autoFilled, setAutoFilled] = useState(false);
 
   const handleAutoFill = () => {
     setBackupForm({
       teamName,
+      leaderName,
       leaderEmail,
-      player1,
-      player2,
-      player3,
-      player4,
+      leaderPhone,
+      player1Name,
+      player1Uid,
+      player2Name,
+      player2Uid,
+      player3Name,
+      player3Uid,
+      player4Name,
+      player4Uid,
     });
-    if (!teamName) setTeamName('Phoenix Squad');
-    if (!leaderEmail && user?.email) setLeaderEmail(user.email);
-    else if (!leaderEmail) setLeaderEmail('leader@phoenix.gg');
-    if (!player1) setPlayer1('PHX_Sniper');
-    if (!player2) setPlayer2('PHX_Rusher');
-    if (!player3) setPlayer3('PHX_IGL');
-    if (!player4) setPlayer4('PHX_Support');
+    setTeamName('Phoenix Squad');
+    setLeaderName('Arjun Sharma');
+    setLeaderEmail('leader@phoenix.gg');
+    setLeaderPhone('9876543210');
+    setPlayer1Name('PHX_Sniper');
+    setPlayer1Uid('10001001');
+    setPlayer2Name('PHX_Rusher');
+    setPlayer2Uid('10001002');
+    setPlayer3Name('PHX_IGL');
+    setPlayer3Uid('10001003');
+    setPlayer4Name('PHX_Support');
+    setPlayer4Uid('10001004');
     setAutoFilled(true);
   };
 
   const handleUndoAutoFill = () => {
     if (!backupForm) return;
-    setTeamName(backupForm.teamName);
-    setLeaderEmail(backupForm.leaderEmail);
-    setPlayer1(backupForm.player1);
-    setPlayer2(backupForm.player2);
-    setPlayer3(backupForm.player3);
-    setPlayer4(backupForm.player4);
+    setTeamName(backupForm.teamName || '');
+    setLeaderName(backupForm.leaderName || '');
+    setLeaderEmail(backupForm.leaderEmail || '');
+    setLeaderPhone(backupForm.leaderPhone || '');
+    setPlayer1Name(backupForm.player1Name || '');
+    setPlayer1Uid(backupForm.player1Uid || '');
+    setPlayer2Name(backupForm.player2Name || '');
+    setPlayer2Uid(backupForm.player2Uid || '');
+    setPlayer3Name(backupForm.player3Name || '');
+    setPlayer3Uid(backupForm.player3Uid || '');
+    setPlayer4Name(backupForm.player4Name || '');
+    setPlayer4Uid(backupForm.player4Uid || '');
     setBackupForm(null);
     setAutoFilled(false);
   };
 
-  // File upload states
-  const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState('');
-  const [screenshotUploadProgress, setScreenshotUploadProgress] = useState<number | null>(null);
-  const [teamLogoUrl, setTeamLogoUrl] = useState('');
-  const [logoUploadProgress, setLogoUploadProgress] = useState<number | null>(null);
-
-  const [submitting, setSubmitting] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [stepError, setStepError] = useState<string | null>(null);
-
-  if (openTournaments.length === 0) {
-    return (
-      <GlassCard className="max-w-md mx-auto text-center py-10">
-        <Icon icon="solar:lock-keyhole-bold" className="text-4xl text-amber-500 mx-auto mb-3" />
-        <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-          Registrations Currently Closed
-        </h3>
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          There are currently no active tournaments open for new team registrations for this game title.
-        </p>
-        <Button variant="secondary" size="sm" className="mt-5" onClick={() => navigate('/leaderboard')}>
-          View Current Standings
-        </Button>
-      </GlassCard>
-    );
-  }
-
-  // Handle Payment Screenshot Upload
+  // Upload Payment Screenshot via Supabase Storage
   const handleScreenshotChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -155,9 +196,10 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     }
 
     try {
-      const userPrefix = user?.uid || `guest_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const guestPrefix = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       const ext = file.name.split('.').pop() || 'jpg';
-      const path = `tournaments/${tournamentId}/payments/${userPrefix}_${Date.now()}.${ext}`;
+      const targetTid = tournamentId || 'general';
+      const path = `tournaments/${targetTid}/payments/${guestPrefix}.${ext}`;
 
       setScreenshotUploadProgress(0);
       const { promise } = uploadFile(path, file, {
@@ -170,6 +212,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
       info('Screenshot Uploaded', 'Payment receipt attached successfully.');
     } catch (err: any) {
       setScreenshotUploadProgress(null);
+      console.error('[Registration] Screenshot upload error:', err);
       error('Upload Failed', err?.message || 'Could not upload payment screenshot.');
     }
   };
@@ -181,7 +224,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     }
   };
 
-  // Handle Team Logo Upload
+  // Upload Team Logo via Supabase Storage
   const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -193,10 +236,10 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     }
 
     try {
-      const path = `tournaments/${tournamentId}/logos/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      const targetTid = tournamentId || 'general';
+      const path = `tournaments/${targetTid}/logos/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
 
       setLogoUploadProgress(0);
-
       const { promise } = uploadFile(path, file, {
         onProgress: (pct) => setLogoUploadProgress(pct),
       });
@@ -207,6 +250,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
       info('Logo Uploaded', 'Team emblem attached successfully.');
     } catch (err: any) {
       setLogoUploadProgress(null);
+      console.error('[Registration] Logo upload error:', err);
       error('Upload Failed', err?.message || 'Could not upload team logo.');
     }
   };
@@ -222,19 +266,35 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   const handleNextStep1 = () => {
     setStepError(null);
     setFieldErrors({});
+
     if (!tournamentId) {
-      setStepError('Please select an active tournament.');
+      setStepError(`Please select an active ${selectedGame} tournament to register for.`);
       return;
     }
+
     if (!teamName.trim() || teamName.trim().length < 2 || teamName.trim().length > 40) {
-      setFieldErrors({ teamName: 'Team name must be between 2 and 40 characters.' });
+      setFieldErrors((prev) => ({ ...prev, teamName: 'Team name must be between 2 and 40 characters.' }));
       setStepError('Please enter a valid Team Name.');
       return;
     }
+
+    if (!leaderName.trim() || leaderName.trim().length < 2 || leaderName.trim().length > 50) {
+      setFieldErrors((prev) => ({ ...prev, leaderName: 'Leader name must be between 2 and 50 characters.' }));
+      setStepError('Please enter the Team Leader full name.');
+      return;
+    }
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!leaderEmail.trim() || !emailRegex.test(leaderEmail.trim())) {
-      setFieldErrors({ leaderEmail: 'Please enter a valid leader email address.' });
+      setFieldErrors((prev) => ({ ...prev, leaderEmail: 'Please enter a valid leader email address.' }));
       setStepError('Valid leader email required for room credentials dispatch.');
+      return;
+    }
+
+    const cleanPhone = leaderPhone.replace(/\s+/g, '').replace(/^\+91/, '');
+    if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+      setFieldErrors((prev) => ({ ...prev, leaderPhone: 'Enter a valid 10-digit Indian mobile number.' }));
+      setStepError('10-digit Indian mobile number required (admins contact leaders by phone).');
       return;
     }
 
@@ -242,14 +302,16 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     setMaxAccessibleStep((m) => Math.max(m, 1));
   };
 
+  const entryFeeINR = (selectedTournament?.entryFeePaise ?? 0) / 100;
+
   // Step 2 Validation -> advance to Step 3
   const handleNextStep2 = () => {
     setStepError(null);
     setFieldErrors({});
-    const entryFeeINR = (selectedTournament?.entryFeePaise ?? 0) / 100;
+
     if (entryFeeINR > 0) {
       if (!otr.trim() || otr.trim().length < 6) {
-        setFieldErrors({ otr: 'Please provide valid UTR / OTR reference (min 6 characters).' });
+        setFieldErrors((prev) => ({ ...prev, otr: 'Please provide valid UTR / OTR reference (min 6 characters).' }));
         setStepError('Payment transaction reference (UTR) is required.');
         return;
       }
@@ -263,12 +325,20 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     setMaxAccessibleStep((m) => Math.max(m, 2));
   };
 
+  // Final Form Submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting) return;
 
     setStepError(null);
     setFieldErrors({});
+
+    if (!db) {
+      const msg = 'Firestore database service is unavailable. Please check your internet connection.';
+      setStepError(msg);
+      error('Database Unavailable', msg);
+      return;
+    }
 
     let normalizedOtr = otr.trim().toUpperCase();
     if (entryFeeINR === 0 && !normalizedOtr) {
@@ -286,11 +356,30 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
       finalScreenshotUrl = 'https://gs-arena.vercel.app/free-entry.png';
     }
 
+    // UID duplicate check
+    const playersList = [
+      { name: player1Name.trim(), uid: player1Uid.trim() },
+      { name: player2Name.trim(), uid: player2Uid.trim() },
+      { name: player3Name.trim(), uid: player3Uid.trim() },
+      { name: player4Name.trim(), uid: player4Uid.trim() },
+    ];
+
+    const uids = playersList.map((p) => p.uid);
+    const uniqueUids = new Set(uids.filter(Boolean));
+    if (uniqueUids.size < 4) {
+      setStepError('Each player must have a unique In-Game UID. Duplicate UIDs found.');
+      error('Duplicate Player UID', 'Player In-Game UIDs must be distinct within the squad roster.');
+      return;
+    }
+
     const formData = {
       tournamentId,
-      teamName,
-      leaderEmail,
-      players: [player1, player2, player3, player4],
+      gameId: selectedGame,
+      teamName: teamName.trim(),
+      leaderName: leaderName.trim(),
+      leaderEmail: leaderEmail.trim().toLowerCase(),
+      leaderPhone: leaderPhone.replace(/\s+/g, '').replace(/^\+91/, ''),
+      players: playersList,
       otr: normalizedOtr,
       paymentScreenshotUrl: finalScreenshotUrl,
       teamLogoUrl: teamLogoUrl || undefined,
@@ -305,48 +394,165 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
         errMap[path] = err.message;
       }
       setFieldErrors(errMap);
-      setStepError(validation.error.errors[0]?.message || 'Please fix form fields before submitting.');
-      error('Validation Error', validation.error.errors[0]?.message || 'Please fix form errors.');
+      const firstErrMsg = validation.error.errors[0]?.message || 'Please fix form fields before submitting.';
+      setStepError(firstErrMsg);
+      error('Validation Error', firstErrMsg);
       return;
     }
 
     setSubmitting(true);
+
     try {
-      const ownerUid = user?.uid || `guest_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-      await submitRegistration(validation.data, ownerUid);
+      // Direct Firestore write to registrations collection with serverTimestamp()
+      const regDocData = {
+        tournamentId: validation.data.tournamentId,
+        gameId: selectedGame,
+        teamName: validation.data.teamName,
+        leaderName: validation.data.leaderName,
+        leaderEmail: validation.data.leaderEmail,
+        leaderPhone: validation.data.leaderPhone,
+        players: validation.data.players,
+        status: 'pending',
+        approvalStatus: 'pending',
+        paymentStatus: 'pending',
+        otr: validation.data.otr,
+        paymentScreenshotUrl: validation.data.paymentScreenshotUrl,
+        teamLogoUrl: validation.data.teamLogoUrl || null,
+        rulesVersion: RULES_VERSION,
+        acceptedAt: new Date().toISOString(),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
 
-      const targetTourney = openTournaments.find((t) => t.id === tournamentId);
+      const docRef = await addDoc(collection(db, 'registrations'), regDocData);
 
-      success('Registration Submitted', 'Your squad registration and payment proof are under review.');
+      // Best effort OTR claim write for duplicate protection
+      try {
+        const otrClaimRef = doc(db, 'tournaments', validation.data.tournamentId, 'otrClaims', validation.data.otr);
+        await setDoc(otrClaimRef, {
+          otr: validation.data.otr,
+          tournamentId: validation.data.tournamentId,
+          registrationId: docRef.id,
+          claimedAt: new Date().toISOString(),
+        });
+      } catch (claimErr: any) {
+        console.warn('[Registration] OTR claim write warning (non-fatal):', claimErr?.message);
+      }
+
+      const targetTourney = tournaments.find((t) => t.id === tournamentId);
+      const tourneyName = targetTourney?.name || `${selectedGame} Tournament`;
+
+      success('Registration Submitted', 'Your squad registration has been recorded and is pending admin review.');
+
+      setSubmittedData({
+        teamName: validation.data.teamName,
+        leaderName: validation.data.leaderName,
+        leaderEmail: validation.data.leaderEmail,
+        leaderPhone: validation.data.leaderPhone,
+        tournamentName: tourneyName,
+        registrationId: docRef.id,
+      });
+
       if (onSuccess) {
         onSuccess({
-          teamName,
-          leaderEmail,
-          tournamentName: targetTourney?.name || 'Tournament',
-        });
-      } else {
-        navigate('/registration/success', {
-          state: {
-            teamName,
-            leaderEmail,
-            tournamentName: targetTourney?.name || 'Tournament',
-          },
+          teamName: validation.data.teamName,
+          leaderEmail: validation.data.leaderEmail,
+          tournamentName: tourneyName,
         });
       }
     } catch (err: any) {
-      setStepError(err?.message || 'Failed to submit registration.');
-      error('Registration Failed', err?.message || 'Failed to submit registration.');
+      console.error('[Registration] Submit failure context:', {
+        tournamentId,
+        teamName,
+        leaderEmail,
+        error: err,
+        code: err?.code,
+        message: err?.message,
+      });
+      const userMessage = err?.message?.includes('permission-denied')
+        ? 'Permission denied. Please verify all required fields are filled correctly.'
+        : err?.message || 'Failed to submit registration. Please try again.';
+      setStepError(userMessage);
+      error('Registration Failed', userMessage);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const tournamentOptions = openTournaments.map((t) => ({
+  // Success State View
+  if (submittedData) {
+    return (
+      <GlassCard strong className="max-w-xl mx-auto text-center p-8 space-y-6 animate-in fade-in zoom-in-95 duration-300">
+        <div className="h-16 w-16 mx-auto rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+          <Icon icon="solar:check-circle-bold" className="text-4xl text-emerald-400" />
+        </div>
+
+        <div className="space-y-2">
+          <span className="text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20">
+            Registration Received
+          </span>
+          <h3 className="text-2xl font-black text-slate-900 dark:text-white">
+            Squad Enrolled Successfully!
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+            Your team roster has been submitted for{' '}
+            <strong className="text-slate-900 dark:text-white">{submittedData.tournamentName}</strong>. Room ID and credentials will be sent to the team leader once verified.
+          </p>
+        </div>
+
+        <div className="p-4 rounded-xl bg-black/20 border border-slate-200/20 dark:border-white/10 text-left space-y-2 text-xs">
+          <div className="flex justify-between border-b border-white/5 pb-1.5">
+            <span className="text-slate-400">Team Name:</span>
+            <span className="font-bold text-white">{submittedData.teamName}</span>
+          </div>
+          <div className="flex justify-between border-b border-white/5 pb-1.5">
+            <span className="text-slate-400">Team Leader:</span>
+            <span className="font-semibold text-white">{submittedData.leaderName}</span>
+          </div>
+          <div className="flex justify-between border-b border-white/5 pb-1.5">
+            <span className="text-slate-400">Leader Email:</span>
+            <span className="font-mono text-brand-400">{submittedData.leaderEmail}</span>
+          </div>
+          <div className="flex justify-between border-b border-white/5 pb-1.5">
+            <span className="text-slate-400">Leader Phone:</span>
+            <span className="font-mono text-amber-400">{submittedData.leaderPhone}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-400">Registration ID:</span>
+            <span className="font-mono text-[10px] text-slate-500 select-all">{submittedData.registrationId}</span>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+          <Button
+            variant="primary"
+            onClick={() => navigate('/leaderboard')}
+            icon="solar:cup-star-bold"
+          >
+            View Leaderboard
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setSubmittedData(null);
+              setCurrentStep(0);
+              setRulesAccepted(false);
+              setPaymentScreenshotUrl('');
+              setOtr('');
+            }}
+            icon="solar:restart-bold"
+          >
+            Register Another Team
+          </Button>
+        </div>
+      </GlassCard>
+    );
+  }
+
+  const tournamentOptions = openTournamentsForGame.map((t) => ({
     value: t.id,
     label: `${t.name} (${t.status.toUpperCase()})`,
   }));
-
-  const entryFeeINR = (selectedTournament?.entryFeePaise ?? 0) / 100;
 
   return (
     <GlassCard strong className="max-w-2xl mx-auto text-left p-6 sm:p-8">
@@ -356,11 +562,11 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
           Team Registration & Payment
         </h3>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          Complete the roster details and submit your payment verification to secure your tournament slot.
+          Complete the roster details and submit your payment verification to secure your tournament slot. No player login required.
         </p>
       </div>
 
-      {/* Stepper (Law 5: Uniform Connectedness) */}
+      {/* Stepper */}
       <div className="mb-6">
         <Stepper
           steps={REGISTRATION_STEPS}
@@ -375,10 +581,37 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
         {/* ================= STEP 1: DETAILS ================= */}
         {currentStep === 0 && (
           <div className="space-y-5 animate-in fade-in duration-200">
-            {/* Parkinson's Law Auto-fill Action */}
-            <div className="flex items-center justify-between gap-3">
+            {/* Game Selector at Top */}
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                1. Select Esports Title *
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {GAME_OPTIONS.map((g) => {
+                  const active = selectedGame === g.id;
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => handleGameSelect(g.id)}
+                      className={`flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 py-3 px-2 sm:px-4 rounded-xl border text-xs font-bold transition-all ${
+                        active
+                          ? 'bg-brand-500/20 border-brand-500 text-brand-400 shadow-lg shadow-brand-500/10 ring-1 ring-brand-500'
+                          : 'bg-black/20 hover:bg-black/30 border-slate-200/20 dark:border-white/10 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Icon icon={g.icon} className="text-lg shrink-0" />
+                      <span className="truncate">{g.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Auto-fill Action */}
+            <div className="flex items-center justify-between gap-3 pt-2">
               <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Squad Details
+                2. Squad & Leader Details
               </span>
               <div className="flex items-center gap-2">
                 <Button
@@ -394,7 +627,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                 {autoFilled && (
                   <span className="text-xs text-amber-500 font-semibold flex items-center gap-1.5" role="status">
                     <Icon icon="solar:check-circle-bold" />
-                    <span>Filled sample</span>
+                    <span>Filled</span>
                     <button
                       type="button"
                       onClick={handleUndoAutoFill}
@@ -407,20 +640,27 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               </div>
             </div>
 
-            {/* Tournament Selection */}
-            <Select
-              label="Select Tournament"
-              options={tournamentOptions}
-              value={tournamentId}
-              onChange={(e) => setTournamentId(e.target.value)}
-              error={fieldErrors['tournamentId']}
-            />
+            {/* Tournament Dropdown if tournaments exist for selected game */}
+            {openTournamentsForGame.length > 0 ? (
+              <Select
+                label={`Select ${selectedGame} Tournament *`}
+                options={tournamentOptions}
+                value={tournamentId}
+                onChange={(e) => setTournamentId(e.target.value)}
+                error={fieldErrors['tournamentId']}
+                helperText="Tournament slot you are registering for"
+              />
+            ) : (
+              <InlineNotice variant="warning">
+                No active tournaments currently open for {selectedGame}. Please choose another game or check back soon.
+              </InlineNotice>
+            )}
 
-            {/* Team Details */}
+            {/* Team Name & Leader Name */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
-                label="Team Name"
-                placeholder="e.g. Soul Esports"
+                label="Team Name *"
+                placeholder="e.g. Phoenix Squad"
                 value={teamName}
                 onChange={(e) => setTeamName(e.target.value)}
                 error={fieldErrors['teamName']}
@@ -428,27 +668,49 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                 required
               />
               <Input
-                label="Team Leader Email"
-                type="email"
-                placeholder="leader@squad.com"
-                value={leaderEmail}
-                onChange={(e) => setLeaderEmail(e.target.value)}
-                error={fieldErrors['leaderEmail']}
-                helperText="Room credentials will be sent here"
+                label="Team Leader Full Name *"
+                placeholder="e.g. Arjun Sharma"
+                value={leaderName}
+                onChange={(e) => setLeaderName(e.target.value)}
+                error={fieldErrors['leaderName']}
+                helperText="Primary point of contact"
                 required
               />
             </div>
 
-            {/* Inline Error Notice if any (Law 3) */}
-            {stepError && (
-              <InlineNotice variant="error">{stepError}</InlineNotice>
-            )}
+            {/* Leader Email & Leader Phone */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="Team Leader Email *"
+                type="email"
+                placeholder="leader@phoenix.gg"
+                value={leaderEmail}
+                onChange={(e) => setLeaderEmail(e.target.value)}
+                error={fieldErrors['leaderEmail']}
+                helperText="Room credentials will be emailed here"
+                required
+              />
+              <Input
+                label="Team Leader Phone (WhatsApp) *"
+                type="tel"
+                placeholder="e.g. 9876543210"
+                value={leaderPhone}
+                onChange={(e) => setLeaderPhone(e.target.value)}
+                error={fieldErrors['leaderPhone']}
+                helperText="10-digit Indian mobile number for urgent coordinator dispatch"
+                required
+              />
+            </div>
+
+            {/* Step Error Notice */}
+            {stepError && <InlineNotice variant="error">{stepError}</InlineNotice>}
 
             <div className="pt-4 border-t border-slate-200 dark:border-white/10 flex justify-end">
               <Button
                 type="button"
                 variant="primary"
                 onClick={handleNextStep1}
+                disabled={openTournamentsForGame.length === 0}
                 icon="solar:arrow-right-bold"
               >
                 Next: Payment Details
@@ -460,7 +722,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
         {/* ================= STEP 2: PAYMENT ================= */}
         {currentStep === 1 && (
           <div className="space-y-5 animate-in fade-in duration-200">
-            {/* Payment & Fee Summary Box */}
+            {/* Fee Summary */}
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 sm:p-5 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-500/20 pb-3">
                 <div>
@@ -506,12 +768,12 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               )}
             </div>
 
-            {/* Contextual Inline Notice (Law 3) */}
+            {/* Contextual Notice */}
             <InlineNotice variant="info">
               Payment verification is cross-referenced with your 12-digit UPI UTR number prior to bracket assignment.
             </InlineNotice>
 
-            {/* OTR / Transaction Reference */}
+            {/* OTR / Reference Number */}
             {entryFeeINR > 0 && (
               <Input
                 label="UPI Reference / UTR Number (OTR) *"
@@ -569,10 +831,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               </div>
             )}
 
-            {/* Inline Error Notice if any (Law 3) */}
-            {stepError && (
-              <InlineNotice variant="error">{stepError}</InlineNotice>
-            )}
+            {stepError && <InlineNotice variant="error">{stepError}</InlineNotice>}
 
             <div className="pt-4 border-t border-slate-200 dark:border-white/10 flex items-center justify-between">
               <Button
@@ -598,45 +857,110 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
         {/* ================= STEP 3: PLAYERS & POLICIES ================= */}
         {currentStep === 2 && (
           <div className="space-y-5 animate-in fade-in duration-200">
-            {/* 4 Player Roster */}
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Player Roster (4 Unique In-Game IDs) *
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Input
-                  placeholder="Player 1 In-Game Name / ID"
-                  value={player1}
-                  onChange={(e) => setPlayer1(e.target.value)}
-                  error={fieldErrors['players.0']}
-                  leftIcon="solar:user-bold"
-                  required
-                />
-                <Input
-                  placeholder="Player 2 In-Game Name / ID"
-                  value={player2}
-                  onChange={(e) => setPlayer2(e.target.value)}
-                  error={fieldErrors['players.1']}
-                  leftIcon="solar:user-bold"
-                  required
-                />
-                <Input
-                  placeholder="Player 3 In-Game Name / ID"
-                  value={player3}
-                  onChange={(e) => setPlayer3(e.target.value)}
-                  error={fieldErrors['players.2']}
-                  leftIcon="solar:user-bold"
-                  required
-                />
-                <Input
-                  placeholder="Player 4 In-Game Name / ID"
-                  value={player4}
-                  onChange={(e) => setPlayer4(e.target.value)}
-                  error={fieldErrors['players.3']}
-                  leftIcon="solar:user-bold"
-                  required
-                />
+            {/* 4 Player Roster: Name & In-Game UID */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Player Roster (4 Players — Name & In-Game UID) *
+                </label>
+                <span className="text-[11px] text-slate-400">All UIDs must be unique</span>
               </div>
+
+              {/* Player 1 */}
+              <div className="p-3 rounded-xl bg-black/10 border border-slate-200/20 dark:border-white/10 space-y-2">
+                <span className="text-xs font-bold text-amber-500 flex items-center gap-1.5">
+                  <Icon icon="solar:user-bold" /> Player 1 (Captain / Starter)
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Input
+                    placeholder="Player 1 Name / IGN"
+                    value={player1Name}
+                    onChange={(e) => setPlayer1Name(e.target.value)}
+                    error={fieldErrors['players.0.name']}
+                    required
+                  />
+                  <Input
+                    placeholder="In-Game UID (numeric)"
+                    value={player1Uid}
+                    onChange={(e) => setPlayer1Uid(e.target.value.trim())}
+                    error={fieldErrors['players.0.uid']}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Player 2 */}
+              <div className="p-3 rounded-xl bg-black/10 border border-slate-200/20 dark:border-white/10 space-y-2">
+                <span className="text-xs font-bold text-amber-500 flex items-center gap-1.5">
+                  <Icon icon="solar:user-bold" /> Player 2
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Input
+                    placeholder="Player 2 Name / IGN"
+                    value={player2Name}
+                    onChange={(e) => setPlayer2Name(e.target.value)}
+                    error={fieldErrors['players.1.name']}
+                    required
+                  />
+                  <Input
+                    placeholder="In-Game UID (numeric)"
+                    value={player2Uid}
+                    onChange={(e) => setPlayer2Uid(e.target.value.trim())}
+                    error={fieldErrors['players.1.uid']}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Player 3 */}
+              <div className="p-3 rounded-xl bg-black/10 border border-slate-200/20 dark:border-white/10 space-y-2">
+                <span className="text-xs font-bold text-amber-500 flex items-center gap-1.5">
+                  <Icon icon="solar:user-bold" /> Player 3
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Input
+                    placeholder="Player 3 Name / IGN"
+                    value={player3Name}
+                    onChange={(e) => setPlayer3Name(e.target.value)}
+                    error={fieldErrors['players.2.name']}
+                    required
+                  />
+                  <Input
+                    placeholder="In-Game UID (numeric)"
+                    value={player3Uid}
+                    onChange={(e) => setPlayer3Uid(e.target.value.trim())}
+                    error={fieldErrors['players.2.uid']}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Player 4 */}
+              <div className="p-3 rounded-xl bg-black/10 border border-slate-200/20 dark:border-white/10 space-y-2">
+                <span className="text-xs font-bold text-amber-500 flex items-center gap-1.5">
+                  <Icon icon="solar:user-bold" /> Player 4
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Input
+                    placeholder="Player 4 Name / IGN"
+                    value={player4Name}
+                    onChange={(e) => setPlayer4Name(e.target.value)}
+                    error={fieldErrors['players.3.name']}
+                    required
+                  />
+                  <Input
+                    placeholder="In-Game UID (numeric)"
+                    value={player4Uid}
+                    onChange={(e) => setPlayer4Uid(e.target.value.trim())}
+                    error={fieldErrors['players.3.uid']}
+                    required
+                  />
+                </div>
+              </div>
+
+              {fieldErrors['players'] && (
+                <p className="text-xs text-rose-500 mt-1">{fieldErrors['players']}</p>
+              )}
             </div>
 
             {/* Team Logo Upload */}
@@ -733,12 +1057,9 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               </div>
             </div>
 
-            {/* Inline Error Notice if any (Law 3) */}
-            {stepError && (
-              <InlineNotice variant="error">{stepError}</InlineNotice>
-            )}
+            {stepError && <InlineNotice variant="error">{stepError}</InlineNotice>}
 
-            {/* Submit & Back Navigation */}
+            {/* Navigation & Submit */}
             <div className="pt-4 border-t border-slate-200 dark:border-white/10 flex items-center justify-between">
               <Button
                 type="button"

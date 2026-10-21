@@ -128,6 +128,83 @@ describe('Validation Schemas and Business Rules', () => {
       const result = RegistrationSchema.safeParse(unaccepted);
       expect(result.success).toBe(false);
     });
+
+    it('accepts full registration with leaderName, leaderPhone, and players with in-game UIDs', () => {
+      const fullInput = {
+        tournamentId: 'demo_bgmi_championship',
+        gameId: 'BGMI',
+        teamName: 'Global Esports',
+        leaderName: 'Dheeraj Singh',
+        leaderEmail: 'dheeraj@example.com',
+        leaderPhone: '+91 9876543210',
+        players: [
+          { name: 'Mavi', uid: '5123456789' },
+          { name: 'Ninja', uid: '5123456790' },
+          { name: 'Fury', uid: '5123456791' },
+          { name: 'Dark', uid: '5123456792' },
+        ],
+        otr: 'UPI-9876543210',
+        paymentScreenshotUrl: 'https://storage.googleapis.com/proof.png',
+        rulesAccepted: true as const,
+      };
+
+      const result = RegistrationSchema.safeParse(fullInput);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.leaderPhone).toBe('9876543210');
+        expect(result.data.players[0]).toEqual({ name: 'Mavi', uid: '5123456789' });
+      }
+    });
+
+    it('rejects duplicate player In-Game UIDs within the team', () => {
+      const duplicateUidInput = {
+        tournamentId: 'demo_bgmi_championship',
+        teamName: 'Duplicate UID Team',
+        leaderName: 'Captain Jack',
+        leaderEmail: 'jack@example.com',
+        leaderPhone: '9876543210',
+        players: [
+          { name: 'Player1', uid: '5123456789' },
+          { name: 'Player2', uid: '5123456790' },
+          { name: 'Player3', uid: '5123456789' }, // duplicate uid
+          { name: 'Player4', uid: '5123456792' },
+        ],
+        otr: 'UPI-9876543210',
+        paymentScreenshotUrl: 'https://storage.googleapis.com/proof.png',
+        rulesAccepted: true as const,
+      };
+
+      const result = RegistrationSchema.safeParse(duplicateUidInput);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.errors[0].message).toMatch(/unique/i);
+      }
+    });
+
+    it('rejects invalid 10-digit Indian phone numbers', () => {
+      const invalidPhone = {
+        tournamentId: 'demo_bgmi_championship',
+        teamName: 'Team Test',
+        leaderName: 'Test Leader',
+        leaderEmail: 'leader@example.com',
+        leaderPhone: '1234567890', // Starts with 1 (not 6-9)
+        players: [
+          { name: 'Player1', uid: '5123456789' },
+          { name: 'Player2', uid: '5123456790' },
+          { name: 'Player3', uid: '5123456791' },
+          { name: 'Player4', uid: '5123456792' },
+        ],
+        otr: 'UPI-9876543210',
+        paymentScreenshotUrl: 'https://storage.googleapis.com/proof.png',
+        rulesAccepted: true as const,
+      };
+
+      const result = RegistrationSchema.safeParse(invalidPhone);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.errors[0].message).toMatch(/valid 10-digit Indian mobile number/i);
+      }
+    });
   });
 
   describe('AppearanceSchema', () => {

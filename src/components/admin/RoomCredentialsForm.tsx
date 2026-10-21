@@ -5,7 +5,7 @@ import { Input } from '../ui/Input';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useToast } from '../ui/Toast';
 import { getMatchSecrets, saveMatchSecrets } from '../../services/tournamentService';
-import { collection, getDocs, query, where, doc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Icon } from '@iconify/react';
 
@@ -32,6 +32,8 @@ export const RoomCredentialsForm: React.FC<RoomCredentialsFormProps> = ({
 
   useEffect(() => {
     let isMounted = true;
+    let unsubReg: (() => void) | undefined;
+
     async function loadData() {
       setLoading(true);
       try {
@@ -42,17 +44,24 @@ export const RoomCredentialsForm: React.FC<RoomCredentialsFormProps> = ({
           setCredentialsSentAt(secrets.credentialsSentAt || null);
         }
 
-        // Fetch approved registrations count
+        // Real-time listener for approved registrations count
         if (db) {
           const regQ = query(
             collection(db, 'registrations'),
             where('tournamentId', '==', tournamentId),
             where('status', '==', 'approved')
           );
-          const snap = await getDocs(regQ);
-          if (isMounted) {
-            setRecipientCount(snap.size);
-          }
+          unsubReg = onSnapshot(
+            regQ,
+            (snap) => {
+              if (isMounted) {
+                setRecipientCount(snap.size);
+              }
+            },
+            (err) => {
+              console.warn('Could not listen to approved registrations count:', err);
+            }
+          );
         }
       } catch (err) {
         console.warn('Could not load room secrets:', err);
@@ -64,6 +73,7 @@ export const RoomCredentialsForm: React.FC<RoomCredentialsFormProps> = ({
     loadData();
     return () => {
       isMounted = false;
+      if (unsubReg) unsubReg();
     };
   }, [tournamentId, matchId]);
 

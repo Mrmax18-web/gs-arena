@@ -50,9 +50,14 @@ export async function submitRegistration(
   const registration: Registration = {
     id: newDoc.id,
     tournamentId: input.tournamentId,
+    gameId: input.gameId,
     teamName: input.teamName.trim(),
+    leaderName: input.leaderName.trim(),
     leaderEmail: input.leaderEmail.trim().toLowerCase(),
-    players: input.players.map((p) => p.trim()),
+    leaderPhone: input.leaderPhone.trim(),
+    players: input.players.map((p) =>
+      typeof p === 'string' ? { name: p.trim(), uid: '' } : { name: p.name.trim(), uid: p.uid.trim() }
+    ),
     ownerUid,
     status: 'pending',
     approvalStatus: 'pending',
