@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '../lib/firebase';
 import { matchConverter, teamConverter } from '../lib/converters';
 import { AwardWinner, Match, ScoringSnapshot, Team, TournamentStandingsRow } from '../types/tournament';
@@ -46,11 +46,11 @@ export function useLeaderboard({
     setLoading(true);
     setError(null);
 
-    // 1. Matches listener
+    // 1. Matches listener (uncapped: standings require complete match set)
     const matchesRef = collection(db, 'tournaments', tournamentId, 'matches').withConverter(
       matchConverter
     );
-    const matchesQuery = query(matchesRef, orderBy('matchNumber', 'asc'), limit(50));
+    const matchesQuery = query(matchesRef, orderBy('matchNumber', 'asc'));
 
     const unsubMatches = onSnapshot(
       matchesQuery,
@@ -71,11 +71,11 @@ export function useLeaderboard({
       }
     );
 
-    // 2. Teams listener
+    // 2. Teams listener (uncapped: standings require complete team registry)
     const teamsRef = collection(db, 'tournaments', tournamentId, 'teams').withConverter(
       teamConverter
     );
-    const teamsQuery = query(teamsRef, limit(50));
+    const teamsQuery = query(teamsRef);
 
     const unsubTeams = onSnapshot(
       teamsQuery,

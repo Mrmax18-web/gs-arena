@@ -46,9 +46,10 @@ export function useAppearance(): {
       return () => {
         unsubscribe();
       };
-    } catch (err: any) {
-      console.warn('[Appearance] Subscription error:', err?.message);
-      setError(err);
+    } catch (err: unknown) {
+      const errorObj = err instanceof Error ? err : new Error(String(err));
+      console.warn('[Appearance] Subscription error:', errorObj.message);
+      setError(errorObj);
       setLoading(false);
     }
   }, []);

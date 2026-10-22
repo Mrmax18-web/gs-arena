@@ -1,7 +1,6 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
-import { TwistRibbon } from '../backgrounds/TwistRibbon';
 import { ErrorBoundary } from './ErrorBoundary';
 import { isFirebaseConfigured } from '../../lib/firebase';
 import { useGame } from '../../context/GameContext';
@@ -9,6 +8,10 @@ import { Icon } from '@iconify/react';
 import { useAppearance } from '../../hooks/useAppearance';
 import { Button } from '../ui/Button';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
+
+const TwistRibbon = React.lazy(() =>
+  import('../backgrounds/TwistRibbon').then((m) => ({ default: m.TwistRibbon }))
+);
 
 export const AppLayout: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -28,8 +31,17 @@ export const AppLayout: React.FC = () => {
 
   return (
     <div className="relative min-h-screen bg-transparent text-slate-100 flex flex-col">
-      {/* 1. WebGL Twist Ribbon rendered fixed behind everything at z-0 */}
-      <TwistRibbon />
+      {/* 1. WebGL Twist Ribbon rendered fixed behind everything at z-0 with nonblocking fallback */}
+      <Suspense
+        fallback={
+          <div
+            aria-hidden="true"
+            className="fixed inset-0 pointer-events-none z-0 bg-[#000000]"
+          />
+        }
+      >
+        <TwistRibbon />
+      </Suspense>
 
       {/* 2. Top notification banner if Firebase env vars are not configured */}
       {!configured && (

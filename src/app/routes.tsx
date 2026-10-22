@@ -4,21 +4,51 @@ import { AppLayout } from '../components/layout/AppLayout';
 import { RoleGuard } from '../components/layout/RoleGuard';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 
-// Implement React lazy loading with React.lazy
-const GameSelectPage = React.lazy(() => import('../pages/GameSelectPage'));
-const LeaderboardPage = React.lazy(() => import('../pages/LeaderboardPage'));
-const AnalyticsPage = React.lazy(() => import('../pages/AnalyticsPage'));
-const RegistrationPage = React.lazy(() => import('../pages/RegistrationPage'));
-const RegistrationSuccess = React.lazy(() => import('../components/registration/RegistrationSuccess'));
-const CSStandingsPage = React.lazy(() => import('../pages/CSStandingsPage'));
-const RulesPage = React.lazy(() => import('../pages/RulesPage'));
-const FAQPage = React.lazy(() => import('../pages/FAQPage'));
-const ContactPage = React.lazy(() => import('../pages/ContactPage'));
-const ViewerPage = React.lazy(() => import('../pages/ViewerPage'));
-const AdminPage = React.lazy(() => import('../pages/AdminPage'));
-const CreatorPage = React.lazy(() => import('../pages/CreatorPage'));
-const LoginPage = React.lazy(() => import('../pages/LoginPage'));
-const NotFoundPage = React.lazy(() => import('../pages/NotFoundPage'));
+// Keep landing page eager to optimize first paint
+import { GameSelectPage } from '../pages/GameSelectPage';
+
+// Lazy-load non-landing routes, adapting named exports
+const LeaderboardPage = React.lazy(() =>
+  import('../pages/LeaderboardPage').then((m) => ({ default: m.LeaderboardPage }))
+);
+const AnalyticsPage = React.lazy(() =>
+  import('../pages/AnalyticsPage').then((m) => ({ default: m.AnalyticsPage }))
+);
+const RegistrationPage = React.lazy(() =>
+  import('../pages/RegistrationPage').then((m) => ({ default: m.RegistrationPage }))
+);
+const RegistrationSuccess = React.lazy(() =>
+  import('../components/registration/RegistrationSuccess').then((m) => ({
+    default: m.RegistrationSuccess,
+  }))
+);
+const CSStandingsPage = React.lazy(() =>
+  import('../pages/CSStandingsPage').then((m) => ({ default: m.CSStandingsPage }))
+);
+const RulesPage = React.lazy(() =>
+  import('../pages/RulesPage').then((m) => ({ default: m.RulesPage }))
+);
+const FAQPage = React.lazy(() =>
+  import('../pages/FAQPage').then((m) => ({ default: m.FAQPage }))
+);
+const ContactPage = React.lazy(() =>
+  import('../pages/ContactPage').then((m) => ({ default: m.ContactPage }))
+);
+const ViewerPage = React.lazy(() =>
+  import('../pages/ViewerPage').then((m) => ({ default: m.ViewerPage }))
+);
+const AdminPage = React.lazy(() =>
+  import('../pages/AdminPage').then((m) => ({ default: m.AdminPage }))
+);
+const CreatorPage = React.lazy(() =>
+  import('../pages/CreatorPage').then((m) => ({ default: m.CreatorPage }))
+);
+const LoginPage = React.lazy(() =>
+  import('../pages/LoginPage').then((m) => ({ default: m.LoginPage }))
+);
+const NotFoundPage = React.lazy(() =>
+  import('../pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage }))
+);
 
 export const AppRoutes: React.FC = () => (
   <Suspense fallback={<LoadingSpinner label="Loading GS Arena..." />}>

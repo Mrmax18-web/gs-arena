@@ -47,7 +47,7 @@ export function useFirestoreDoc<T>(
       );
 
       return () => unsubscribe();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.warn(`Exception setting up doc listener for ${path}:`, err);
       setError(err instanceof Error ? err : new Error(String(err)));
       setLoading(false);

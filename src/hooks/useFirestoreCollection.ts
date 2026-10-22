@@ -72,7 +72,7 @@ export function useFirestoreCollection<T>(
       );
 
       return () => unsubscribe();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.warn(`Exception setting up listener for ${collectionPath}:`, err);
       setError(err instanceof Error ? err : new Error(String(err)));
       setLoading(false);

@@ -1,5 +1,5 @@
 // Twist Ribbon — Originkit DriftingLeftSmooth
-import React, { useEffect, useRef, type CSSProperties } from 'react';
+import React, { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useBackground } from '../../context/BackgroundContext';
 
 type RGBA = [number, number, number, number];
@@ -383,9 +383,11 @@ function __OriginkitBase_DriftingLeftSmooth(props: Props) {
       }
       return s;
     };
+    const vs = sh(gl.VERTEX_SHADER, VERT);
+    const fs = sh(gl.FRAGMENT_SHADER, FRAG);
     const prog = gl.createProgram()!;
-    gl.attachShader(prog, sh(gl.VERTEX_SHADER, VERT));
-    gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FRAG));
+    gl.attachShader(prog, vs);
+    gl.attachShader(prog, fs);
     gl.linkProgram(prog);
     if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
       console.error('DriftingLeftSmooth link:', gl.getProgramInfoLog(prog));
@@ -409,12 +411,16 @@ function __OriginkitBase_DriftingLeftSmooth(props: Props) {
     const resize = () => {
       W = root.offsetWidth;
       H = root.offsetHeight;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const isMobile =
+        typeof window !== 'undefined' &&
+        (window.innerWidth < 768 ||
+          /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent));
+      const dpr = Math.min(window.devicePixelRatio || 1, isMobile ? 1 : 1.5);
       canvas.width = Math.max(1, Math.round(W * dpr));
       canvas.height = Math.max(1, Math.round(H * dpr));
     };
-    const ro = new ResizeObserver(resize);
-    ro.observe(root);
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resize) : null;
+    if (ro) ro.observe(root);
     resize();
 
     let mx = 0.5;
@@ -438,19 +444,23 @@ function __OriginkitBase_DriftingLeftSmooth(props: Props) {
     window.addEventListener('pointermove', onMove, { passive: true });
     window.addEventListener('pointerleave', onLeave, { passive: true });
 
+    // Performance optimizations: 30 FPS cap, frame skip, pause on hidden/offscreen
+    const TARGET_FPS = 30;
+    const FRAME_INTERVAL = 1000 / TARGET_FPS; // ~33.33ms
+    let lastFrameTime = performance.now();
     let clock = 0;
     let raf = 0;
     let last = -1;
-    const frame = (now: number) => {
-      raf = requestAnimationFrame(frame);
-      const dt = last < 0 ? 0 : Math.min((now - last) / 1000, 1 / 20);
-      last = now;
+    let isPaused = false;
+    let isDocumentVisible = typeof document !== 'undefined' ? !document.hidden : true;
+    let isIntersecting = true;
+
+    const renderFrame = (dt: number) => {
       const p = propsRef.current;
       clock =
         (clock +
           dt *
-            (Math.max(0, Math.min(100, num(p.speed, 50))) / 50) *
-            (reduced ? 0.25 : 1)) %
+            (Math.max(0, Math.min(100, num(p.speed, 50))) / 50)) %
         3600;
       const k = 1 - Math.exp(-dt * 6);
       mx += (tx - mx) * k;
@@ -471,15 +481,92 @@ function __OriginkitBase_DriftingLeftSmooth(props: Props) {
       effectUniforms(gl, u, p);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     };
+
+    const updatePauseState = () => {
+      const shouldPause = !isDocumentVisible || !isIntersecting;
+      if (shouldPause && !isPaused) {
+        isPaused = true;
+      } else if (!shouldPause && isPaused) {
+        isPaused = false;
+        last = performance.now();
+        lastFrameTime = performance.now();
+      }
+    };
+
+    const onVisibilityChange = () => {
+      isDocumentVisible = typeof document !== 'undefined' ? !document.hidden : true;
+      updatePauseState();
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisibilityChange);
+    }
+
+    let io: IntersectionObserver | null = null;
+    if (typeof IntersectionObserver !== 'undefined') {
+      io = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            isIntersecting = entry.isIntersecting;
+          }
+          updatePauseState();
+        },
+        { threshold: 0.01 }
+      );
+      io.observe(root);
+    }
+
+    // Check prefers-reduced-motion once on mount: freeze animation to static frame if set
+    if (reduced) {
+      renderFrame(0);
+      return () => {
+        if (ro) ro.disconnect();
+        if (io) io.disconnect();
+        if (typeof document !== 'undefined') {
+          document.removeEventListener('visibilitychange', onVisibilityChange);
+        }
+        canvas.removeEventListener('pointermove', onMove);
+        canvas.removeEventListener('pointerleave', onLeave);
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerleave', onLeave);
+        if (gl) {
+          gl.deleteShader(vs);
+          gl.deleteShader(fs);
+          gl.deleteProgram(prog);
+          gl.deleteBuffer(buf);
+        }
+      };
+    }
+
+    const frame = (now: number) => {
+      raf = requestAnimationFrame(frame);
+      if (isPaused) return;
+
+      const elapsed = now - lastFrameTime;
+      if (elapsed < FRAME_INTERVAL) {
+        return; // Cheap frame skip to maintain ~30 FPS
+      }
+      lastFrameTime = now - (elapsed % FRAME_INTERVAL);
+
+      const dt = last < 0 ? 0 : Math.min((now - last) / 1000, 1 / 20);
+      last = now;
+      renderFrame(dt);
+    };
     raf = requestAnimationFrame(frame);
+
     return () => {
-      cancelAnimationFrame(raf);
-      ro.disconnect();
+      if (raf) cancelAnimationFrame(raf);
+      if (ro) ro.disconnect();
+      if (io) io.disconnect();
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisibilityChange);
+      }
       canvas.removeEventListener('pointermove', onMove);
       canvas.removeEventListener('pointerleave', onLeave);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerleave', onLeave);
       if (gl) {
+        gl.deleteShader(vs);
+        gl.deleteShader(fs);
         gl.deleteProgram(prog);
         gl.deleteBuffer(buf);
       }
@@ -573,11 +660,21 @@ export default function DriftingLeftSmooth(props: Record<string, unknown>) {
 
 /**
  * App-wide background layer embedding DriftingLeftSmooth in a full-screen fixed container.
+ * Defers mounting WebGL context by ~500ms after first paint to optimize initial paint time,
+ * clearing the mount timer cleanly if unmounted earlier.
  */
 export const TwistRibbon: React.FC = () => {
   const { config } = useBackground();
+  const [isReady, setIsReady] = useState(false);
 
-  if (!config.enabled) {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsReady(true);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!config.enabled || !isReady) {
     return (
       <div
         aria-hidden="true"
