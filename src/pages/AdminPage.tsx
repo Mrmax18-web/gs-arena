@@ -274,9 +274,8 @@ export const AdminPage: React.FC = () => {
                 },
               });
 
-              // Interim 8-second timeout on image upload
-              const uploadPromise = withTimeout(promise, 8000, 'uploadQrImage');
-              const uploadedUrl = await uploadPromise;
+              // 2. Upload image SECOND (service enforces 8s timeout internally)
+              const uploadedUrl = await promise;
 
               // 3. Patch the URL THIRD (guarded against late upload completion)
               if (!uploadTimedOut) {
