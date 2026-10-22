@@ -2,8 +2,6 @@ import {
   collection,
   doc,
   getDocs,
-  setDoc,
-  deleteDoc,
   query,
   where,
   writeBatch,
@@ -48,7 +46,8 @@ export interface DeleteDataResult {
 
 /**
  * Populates a complete mock tournament with 16 teams and 5 completed matches.
- * Uses bounded timeouts (10s for single writes, 15s for batch commits) to prevent hangs.
+ * Uses writeBatch (max 450 writes/batch) respecting the 500-write limit.
+ * Guaranteed not to generate demo data in production environments.
  */
 export async function generateDemoData(): Promise<{
   success: boolean;
@@ -58,67 +57,67 @@ export async function generateDemoData(): Promise<{
   if (!db) throw new Error('Firestore is not initialized');
   const firestore = db;
 
+  const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+  if (projectId === 'tournament-tracker-prod') {
+    throw new Error('Demo data generation is disabled in production environments.');
+  }
+
   const tid = 'demo_bgmi_championship';
   const now = new Date().toISOString();
 
-  // 1. Create or overwrite Demo Tournament doc
-  const tourneyRef = doc(firestore, 'tournaments', tid);
-  await withTimeout(
-    setDoc(
-      tourneyRef,
-      {
-        id: tid,
-        name: 'Pro Esports Invitational (Demo)',
-        gameId: 'BGMI',
-        status: 'live',
-        registrationOpen: true,
-        rosterSize: 4,
-        scoringSnapshot: {
-          placementPoints: BGMI_PLACEMENT_POINTS,
-          killPoints: 1,
-          matchWinPoints: 1,
-          mvpWeights: {
-            kills: 2.5,
-            damage: 0.01,
-            assists: 1.0,
-            survivalSeconds: 0.2 / 60,
-            revives: 1.5,
-          },
-        },
-        isDemo: true,
-        createdAt: now,
-        updatedAt: now,
-      },
-      { merge: true }
-    ),
-    10000,
-    'generateDemoData:setTourneyDoc'
-  );
+  interface DemoBatchOp {
+    ref: ReturnType<typeof doc>;
+    data: Record<string, unknown>;
+  }
 
-  // 2. Create 16 Public Teams
-  const teamsBatch = writeBatch(firestore);
+  const operations: DemoBatchOp[] = [];
+
+  // 1. Create Demo Tournament doc (1 write)
+  operations.push({
+    ref: doc(firestore, 'tournaments', tid),
+    data: {
+      id: tid,
+      name: 'Pro Esports Invitational (Demo)',
+      gameId: 'BGMI',
+      status: 'live',
+      registrationOpen: true,
+      rosterSize: 4,
+      scoringSnapshot: {
+        placementPoints: BGMI_PLACEMENT_POINTS,
+        killPoints: 1,
+        matchWinPoints: 1,
+        mvpWeights: {
+          kills: 2.5,
+          damage: 0.01,
+          assists: 1.0,
+          survivalSeconds: 0.2 / 60,
+          revives: 1.5,
+        },
+      },
+      isDemo: true,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  // 2. Create 16 Public Teams (16 writes)
   DEMO_TEAMS.forEach((team, idx) => {
     const teamId = `demo_team_${idx + 1}`;
-    const teamRef = doc(firestore, 'tournaments', tid, 'teams', teamId);
-    teamsBatch.set(
-      teamRef,
-      {
+    operations.push({
+      ref: doc(firestore, 'tournaments', tid, 'teams', teamId),
+      data: {
         id: teamId,
         tournamentId: tid,
         teamName: team.name,
         players: team.players,
         createdAt: now,
       },
-      { merge: true }
-    );
+    });
   });
-  await withTimeout(teamsBatch.commit(), 15000, 'generateDemoData:teamsBatch');
 
-  // 3. Create 5 Matches with Full Results & Player Stats
-  const matchesBatch = writeBatch(firestore);
+  // 3. Create 5 Matches with Full Results & Player Stats (5 writes)
   for (let m = 1; m <= 5; m++) {
     const mid = `demo_match_${m}`;
-    const matchRef = doc(firestore, 'tournaments', tid, 'matches', mid);
 
     // Deterministic shuffle of placements based on match number
     const shuffledTeams = [...DEMO_TEAMS].sort((a, b) => {
@@ -166,9 +165,9 @@ export async function generateDemoData(): Promise<{
       };
     });
 
-    matchesBatch.set(
-      matchRef,
-      {
+    operations.push({
+      ref: doc(firestore, 'tournaments', tid, 'matches', mid),
+      data: {
         id: mid,
         tournamentId: tid,
         matchNumber: m,
@@ -180,10 +179,39 @@ export async function generateDemoData(): Promise<{
         createdAt: now,
         updatedAt: now,
       },
-      { merge: true }
-    );
+    });
   }
-  await withTimeout(matchesBatch.commit(), 15000, 'generateDemoData:matchesBatch');
+
+  // Chunk operations into batches of at most 450 writes (respecting Firestore 500-write limit)
+  const MAX_BATCH_SIZE = 450;
+  const chunks: DemoBatchOp[][] = [];
+  for (let i = 0; i < operations.length; i += MAX_BATCH_SIZE) {
+    chunks.push(operations.slice(i, i + MAX_BATCH_SIZE));
+  }
+
+  let committedBatches = 0;
+  for (let i = 0; i < chunks.length; i++) {
+    const batch = writeBatch(firestore);
+    for (const op of chunks[i]) {
+      batch.set(op.ref, op.data, { merge: true });
+    }
+
+    try {
+      await withTimeout(
+        batch.commit(),
+        15000,
+        `generateDemoData:batch_${i + 1}_of_${chunks.length}`
+      );
+      committedBatches++;
+    } catch (err: unknown) {
+      if (committedBatches > 0) {
+        const msg = `Batch ${i + 1} timed out or failed. Earlier committed batches (1 through ${committedBatches}) may have already succeeded on the server.`;
+        console.warn(`[DemoData] ${msg}`);
+        throw new Error(msg);
+      }
+      throw err;
+    }
+  }
 
   // 4. Populate publicAnalytics so leaderboards and graphs display immediately
   await withTimeout(syncTournamentAnalytics(tid), 10000, 'generateDemoData:syncAnalytics');
@@ -195,12 +223,21 @@ export async function generateDemoData(): Promise<{
   };
 }
 
+/**
+ * Wipes demo or all tournament data using chunked writeBatches (max 450 writes per batch).
+ * Avoids sequential individual delete roundtrips.
+ */
 export async function deleteAllData(
   confirmText: string,
   demoOnly = true
 ): Promise<DeleteDataResult> {
   if (!db) throw new Error('Firestore is not initialized');
   const firestore = db;
+
+  const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+  if (!demoOnly && projectId === 'tournament-tracker-prod') {
+    throw new Error('Full database wipe is disabled in production environments.');
+  }
 
   if (!demoOnly && confirmText.trim() !== 'DELETE ALL DATA') {
     throw new Error('Confirmation phrase must match "DELETE ALL DATA" exactly.');
@@ -211,6 +248,8 @@ export async function deleteAllData(
   let deletedSecrets = 0;
   let deletedContacts = 0;
 
+  const refsToDelete: ReturnType<typeof doc>[] = [];
+
   if (demoOnly) {
     // 1. Delete tournaments where isDemo == true
     const tourneysQ = query(collection(firestore, 'tournaments'), where('isDemo', '==', true));
@@ -220,14 +259,12 @@ export async function deleteAllData(
       const tid = tDoc.id;
       // Delete subcollections matches & teams
       const matchesSnap = await getDocs(collection(firestore, 'tournaments', tid, 'matches'));
-      for (const m of matchesSnap.docs) {
-        await deleteDoc(m.ref);
-      }
+      matchesSnap.docs.forEach((m) => refsToDelete.push(m.ref));
+
       const teamsSnap = await getDocs(collection(firestore, 'tournaments', tid, 'teams'));
-      for (const tm of teamsSnap.docs) {
-        await deleteDoc(tm.ref);
-      }
-      await deleteDoc(tDoc.ref);
+      teamsSnap.docs.forEach((tm) => refsToDelete.push(tm.ref));
+
+      refsToDelete.push(tDoc.ref);
       deletedTournaments++;
     }
 
@@ -235,14 +272,12 @@ export async function deleteAllData(
     try {
       const demoRef = doc(firestore, 'tournaments', 'demo_bgmi_championship');
       const matchesSnap = await getDocs(collection(firestore, 'tournaments', 'demo_bgmi_championship', 'matches'));
-      for (const m of matchesSnap.docs) {
-        await deleteDoc(m.ref);
-      }
+      matchesSnap.docs.forEach((m) => refsToDelete.push(m.ref));
+
       const teamsSnap = await getDocs(collection(firestore, 'tournaments', 'demo_bgmi_championship', 'teams'));
-      for (const tm of teamsSnap.docs) {
-        await deleteDoc(tm.ref);
-      }
-      await deleteDoc(demoRef);
+      teamsSnap.docs.forEach((tm) => refsToDelete.push(tm.ref));
+
+      refsToDelete.push(demoRef);
     } catch {
       // Ignored
     }
@@ -252,34 +287,45 @@ export async function deleteAllData(
     for (const tDoc of tourneysSnap.docs) {
       const tid = tDoc.id;
       const matchesSnap = await getDocs(collection(firestore, 'tournaments', tid, 'matches'));
-      for (const m of matchesSnap.docs) {
-        await deleteDoc(m.ref);
-      }
+      matchesSnap.docs.forEach((m) => refsToDelete.push(m.ref));
+
       const teamsSnap = await getDocs(collection(firestore, 'tournaments', tid, 'teams'));
-      for (const tm of teamsSnap.docs) {
-        await deleteDoc(tm.ref);
-      }
-      await deleteDoc(tDoc.ref);
+      teamsSnap.docs.forEach((tm) => refsToDelete.push(tm.ref));
+
+      refsToDelete.push(tDoc.ref);
       deletedTournaments++;
     }
 
     const regSnap = await getDocs(collection(firestore, 'registrations'));
-    for (const r of regSnap.docs) {
-      await deleteDoc(r.ref);
+    regSnap.docs.forEach((r) => {
+      refsToDelete.push(r.ref);
       deletedRegistrations++;
-    }
+    });
 
     const secSnap = await getDocs(collection(firestore, 'matchSecrets'));
-    for (const s of secSnap.docs) {
-      await deleteDoc(s.ref);
+    secSnap.docs.forEach((s) => {
+      refsToDelete.push(s.ref);
       deletedSecrets++;
-    }
+    });
 
     const conSnap = await getDocs(collection(firestore, 'contactMessages'));
-    for (const c of conSnap.docs) {
-      await deleteDoc(c.ref);
+    conSnap.docs.forEach((c) => {
+      refsToDelete.push(c.ref);
       deletedContacts++;
-    }
+    });
+  }
+
+  // Deduplicate refs
+  const uniqueRefPaths = Array.from(new Set(refsToDelete.map((r) => r.path)));
+  const uniqueRefs = uniqueRefPaths.map((p) => doc(firestore, p));
+
+  // Chunk deletes into batches of max 450 writes
+  const MAX_BATCH = 450;
+  for (let i = 0; i < uniqueRefs.length; i += MAX_BATCH) {
+    const chunk = uniqueRefs.slice(i, i + MAX_BATCH);
+    const batch = writeBatch(firestore);
+    chunk.forEach((r) => batch.delete(r));
+    await withTimeout(batch.commit(), 15000, `deleteAllData:batch_${Math.floor(i / MAX_BATCH) + 1}`);
   }
 
   return {

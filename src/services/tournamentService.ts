@@ -29,15 +29,26 @@ import { GameId } from '../types/game';
 import { CANONICAL_GAMES } from '../lib/constants';
 
 /**
+ * Pre-allocates a tournament document ID client-side prior to writing.
+ * Guarantees idempotent creation retries by maintaining a stable document ID across attempts.
+ */
+export function preallocateTournamentId(): string {
+  if (!db) throw new Error('Firestore not initialized');
+  return doc(collection(db, 'tournaments')).id;
+}
+
+/**
  * Creates a new tournament document in Firestore.
  * Bounded by a 10-second timeout on the setDoc operation to prevent indefinite hangs.
+ * Supports an optional preallocatedId to guarantee idempotent creation retries.
  */
 export async function createTournament(
   name: string,
   gameId: GameId,
   rosterSize = 4,
   customSnapshot?: Partial<ScoringSnapshot>,
-  extra?: { entryFeePaise?: number; upiQrUrl?: string; upiId?: string }
+  extra?: { entryFeePaise?: number; upiQrUrl?: string; upiId?: string },
+  preallocatedId?: string
 ): Promise<string> {
   if (!db) throw new Error('Firestore not initialized');
 
@@ -50,7 +61,7 @@ export async function createTournament(
   };
 
   const colRef = collection(db, 'tournaments').withConverter(tournamentConverter);
-  const newDoc = doc(colRef);
+  const newDoc = preallocatedId ? doc(colRef, preallocatedId) : doc(colRef);
 
   const tournament: Tournament = {
     id: newDoc.id,

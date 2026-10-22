@@ -13,14 +13,14 @@ import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
 import { withTimeout, TimeoutError } from '../lib/timeout';
-import { createTournament, updateTournament, deleteTournament, deleteMatch } from '../services/tournamentService';
+import { createTournament, updateTournament, deleteTournament, deleteMatch, preallocateTournamentId } from '../services/tournamentService';
 import { MatchForm } from '../components/admin/MatchForm';
 import { ResultsEditor } from '../components/admin/ResultsEditor';
 import { RoomCredentialsForm } from '../components/admin/RoomCredentialsForm';
 import { RegistrationReview } from '../components/admin/RegistrationReview';
 import { LeaderboardTable } from '../components/leaderboard/LeaderboardTable';
 import { useLeaderboard } from '../hooks/useLeaderboard';
-import { uploadFile } from '../services/storageService';
+import { uploadFile, validateImageFile } from '../services/storageService';
 import { useAuth } from '../context/AuthContext';
 import { isAdmin } from '../lib/permissions';
 import { where, limit } from 'firebase/firestore';
@@ -87,6 +87,8 @@ export const AdminPage: React.FC = () => {
   // Tournament Create/Edit Modal
   const [tourneyModalOpen, setTourneyModalOpen] = useState(false);
   const [editingTourney, setEditingTourney] = useState<Tournament | null>(null);
+  const [allocatedTourneyId, setAllocatedTourneyId] = useState<string | null>(null);
+  const [pendingQrFile, setPendingQrFile] = useState<File | null>(null);
   const [tourneyName, setTourneyName] = useState('');
   const [tourneyStatus, setTourneyStatus] = useState<Tournament['status']>('upcoming');
   const [tourneyRegOpen, setTourneyRegOpen] = useState(true);
@@ -171,8 +173,10 @@ export const AdminPage: React.FC = () => {
   const handleOpenTourneyModal = (t?: Tournament) => {
     setBackupTourneyData(null);
     setCopiedFromPrev(false);
+    setPendingQrFile(null);
     if (t) {
       setEditingTourney(t);
+      setAllocatedTourneyId(t.id);
       setTourneyName(t.name);
       setTourneyStatus(t.status);
       setTourneyRegOpen(t.registrationOpen);
@@ -181,6 +185,11 @@ export const AdminPage: React.FC = () => {
       setTourneyUpiId(t.upiId || '');
     } else {
       setEditingTourney(null);
+      try {
+        setAllocatedTourneyId(preallocateTournamentId());
+      } catch {
+        setAllocatedTourneyId(null);
+      }
       setTourneyName('');
       setTourneyStatus('upcoming');
       setTourneyRegOpen(true);
@@ -194,7 +203,11 @@ export const AdminPage: React.FC = () => {
 
   /**
    * Handles creating or updating a tournament document.
-   * Uses lifecycle checks (isMountedRef), double-submit locking, and an overall 30s deadline.
+   * Write ordering:
+   * 1. Save text/metadata FIRST
+   * 2. Upload QR image SECOND (with interim 8s timeout, preventing late completion patching)
+   * 3. Patch QR URL THIRD
+   * Shows "Image upload failed; text data was saved without the image" ONLY when text succeeded and image failed.
    */
   const handleSaveTourney = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -207,9 +220,15 @@ export const AdminPage: React.FC = () => {
     const entryFeePaise = Math.max(0, Math.round((Number(tourneyEntryFeeINR) || 0) * 100));
 
     setSavingTourney(true);
+    let textSaved = false;
+    let imageUploadFailed = false;
+
     try {
       await withTimeout(
         (async () => {
+          let targetTid = editingTourney?.id || allocatedTourneyId || undefined;
+
+          // 1. Save text/metadata FIRST
           if (editingTourney?.id) {
             await updateTournament(editingTourney.id, {
               name: tourneyName.trim(),
@@ -219,11 +238,9 @@ export const AdminPage: React.FC = () => {
               upiQrUrl: tourneyUpiQrUrl.trim() || undefined,
               upiId: tourneyUpiId.trim() || undefined,
             });
-            if (isMountedRef.current) {
-              success('Tournament Updated', `"${tourneyName}" updated.`);
-            }
+            targetTid = editingTourney.id;
           } else {
-            const newId = await createTournament(
+            targetTid = await createTournament(
               tourneyName.trim(),
               gameId,
               4,
@@ -232,16 +249,71 @@ export const AdminPage: React.FC = () => {
                 entryFeePaise,
                 upiQrUrl: tourneyUpiQrUrl.trim() || undefined,
                 upiId: tourneyUpiId.trim() || undefined,
-              }
+              },
+              allocatedTourneyId || undefined
             );
             if (isMountedRef.current) {
-              setSelectedTourneyId(newId);
-              success('Tournament Created', `"${tourneyName}" created.`);
+              setSelectedTourneyId(targetTid);
             }
           }
+          textSaved = true;
+
+          // 2. Upload image SECOND (if a file was selected)
+          if (pendingQrFile && targetTid) {
+            let uploadTimedOut = false;
+            try {
+              const ext = pendingQrFile.name.split('.').pop() || 'png';
+              const path = `tournaments/${targetTid}/qr_${Date.now()}.${ext}`;
+              if (isMountedRef.current) setQrUploadProgress(0);
+
+              const { promise } = uploadFile(path, pendingQrFile, {
+                onProgress: (pct) => {
+                  if (!uploadTimedOut && isMountedRef.current) {
+                    setQrUploadProgress(pct);
+                  }
+                },
+              });
+
+              // Interim 8-second timeout on image upload
+              const uploadPromise = withTimeout(promise, 8000, 'uploadQrImage');
+              const uploadedUrl = await uploadPromise;
+
+              // 3. Patch the URL THIRD (guarded against late upload completion)
+              if (!uploadTimedOut) {
+                await updateTournament(targetTid, {
+                  upiQrUrl: uploadedUrl,
+                });
+                if (isMountedRef.current) {
+                  setTourneyUpiQrUrl(uploadedUrl);
+                  setPendingQrFile(null);
+                }
+              }
+            } catch (imgErr: unknown) {
+              uploadTimedOut = true;
+              imageUploadFailed = true;
+              console.error('[AdminPage] QR image upload failed or timed out:', imgErr);
+            } finally {
+              if (isMountedRef.current) {
+                setQrUploadProgress(null);
+              }
+            }
+          }
+
           if (isMountedRef.current) {
             refetchTournaments();
             setTourneyModalOpen(false);
+
+            if (textSaved && imageUploadFailed) {
+              error(
+                'Partial Save',
+                'Image upload failed; text data was saved without the image'
+              );
+            } else {
+              success(
+                editingTourney ? 'Tournament Updated' : 'Tournament Created',
+                `"${tourneyName}" ${editingTourney ? 'updated' : 'created'}.`
+              );
+            }
           }
         })(),
         30000,
@@ -310,25 +382,20 @@ export const AdminPage: React.FC = () => {
     }
   };
 
-  const handleQrUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  /**
+   * Validates and stages an uploaded QR image file for deferred upload during tournament save.
+   */
+  const handleQrFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    try {
-      const ext = file.name.split('.').pop() || 'png';
-      const path = `tournaments/qr_${Date.now()}.${ext}`;
-      setQrUploadProgress(0);
-      const { promise } = uploadFile(path, file, {
-        onProgress: (pct) => setQrUploadProgress(pct),
-      });
-      const url = await promise;
-      setTourneyUpiQrUrl(url);
-      setQrUploadProgress(null);
-      success('QR Uploaded', 'Tournament QR code attached.');
-    } catch (err: any) {
-      setQrUploadProgress(null);
-      error('Upload Failed', err?.message || 'Could not upload QR code.');
+    const validation = validateImageFile(file);
+    if (!validation.valid) {
+      error('Invalid Image', validation.error || 'Please choose a JPEG, PNG, or WebP under 5 MB.');
+      e.target.value = '';
+      return;
     }
+    setPendingQrFile(file);
   };
 
   // Preview Standings using useLeaderboard
@@ -755,7 +822,7 @@ export const AdminPage: React.FC = () => {
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
               UPI QR Code Image
             </label>
-            {tourneyUpiQrUrl ? (
+            {tourneyUpiQrUrl && !pendingQrFile ? (
               <div className="flex items-center gap-3 p-2 rounded-lg border border-slate-200 dark:border-white/10 bg-black/10">
                 <img
                   src={tourneyUpiQrUrl}
@@ -769,9 +836,32 @@ export const AdminPage: React.FC = () => {
                   variant="ghost"
                   size="sm"
                   type="button"
-                  onClick={() => setTourneyUpiQrUrl('')}
+                  onClick={() => {
+                    setTourneyUpiQrUrl('');
+                    setPendingQrFile(null);
+                  }}
                 >
                   Clear
+                </Button>
+              </div>
+            ) : pendingQrFile ? (
+              <div className="flex items-center gap-3 p-2.5 rounded-lg border border-brand-500/30 bg-brand-500/10">
+                <Icon icon="solar:file-check-bold" className="text-2xl text-brand-400 shrink-0" />
+                <div className="truncate flex-1">
+                  <div className="text-xs font-medium text-slate-900 dark:text-white truncate">
+                    {pendingQrFile.name}
+                  </div>
+                  <div className="text-[10px] text-brand-500 dark:text-brand-300">
+                    Ready to upload on save ({(pendingQrFile.size / 1024).toFixed(1)} KB)
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  onClick={() => setPendingQrFile(null)}
+                >
+                  Remove
                 </Button>
               </div>
             ) : (
@@ -779,19 +869,19 @@ export const AdminPage: React.FC = () => {
                 <input
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
-                  onChange={handleQrUpload}
+                  onChange={handleQrFileSelect}
                   className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-white/10 file:text-slate-300 hover:file:bg-white/20 cursor-pointer"
                 />
-                {qrUploadProgress !== null && (
-                  <div className="text-[10px] text-amber-500">
-                    Uploading QR: {qrUploadProgress}%
-                  </div>
-                )}
                 <Input
                   placeholder="Or paste QR Image URL (https://...)"
                   value={tourneyUpiQrUrl}
                   onChange={(e) => setTourneyUpiQrUrl(e.target.value)}
                 />
+              </div>
+            )}
+            {qrUploadProgress !== null && (
+              <div className="text-[10px] text-amber-500 font-medium">
+                Uploading QR: {qrUploadProgress}%
               </div>
             )}
           </div>
