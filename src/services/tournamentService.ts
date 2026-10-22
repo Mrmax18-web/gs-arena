@@ -11,6 +11,7 @@ import {
   runTransaction,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { withTimeout } from '../lib/timeout';
 import {
   tournamentConverter,
   matchConverter,
@@ -27,6 +28,10 @@ import {
 import { GameId } from '../types/game';
 import { CANONICAL_GAMES } from '../lib/constants';
 
+/**
+ * Creates a new tournament document in Firestore.
+ * Bounded by a 10-second timeout on the setDoc operation to prevent indefinite hangs.
+ */
 export async function createTournament(
   name: string,
   gameId: GameId,
@@ -63,21 +68,28 @@ export async function createTournament(
     updatedAt: new Date().toISOString(),
   };
 
-  await setDoc(newDoc, tournament);
+  await withTimeout(setDoc(newDoc, tournament), 10000, 'createTournament:setDoc');
   return newDoc.id;
 }
 
-
+/**
+ * Updates an existing tournament document in Firestore.
+ * Bounded by a 10-second timeout on the updateDoc operation to prevent indefinite hangs.
+ */
 export async function updateTournament(
   tid: string,
   data: Partial<Tournament>
 ): Promise<void> {
   if (!db) throw new Error('Firestore not initialized');
   const docRef = doc(db, 'tournaments', tid);
-  await updateDoc(docRef, {
-    ...data,
-    updatedAt: new Date().toISOString(),
-  });
+  await withTimeout(
+    updateDoc(docRef, {
+      ...data,
+      updatedAt: new Date().toISOString(),
+    }),
+    10000,
+    'updateTournament:updateDoc'
+  );
 }
 
 export async function deleteTournament(tid: string): Promise<void> {
@@ -264,14 +276,18 @@ export async function syncTournamentAnalytics(tid: string): Promise<void> {
     const teamKills = Array.from(teamMap.values()).sort((a, b) => b.totalKills - a.totalKills);
     const playerKills = Array.from(playerMap.values()).sort((a, b) => b.kills - a.kills);
 
-    await setDoc(doc(db, 'publicAnalytics', tid), {
-      tournamentId: tid,
-      tournamentName: tourney.name,
-      gameId: tourney.gameId,
-      teamKills,
-      playerKills,
-      updatedAt: new Date().toISOString(),
-    }, { merge: true });
+    await withTimeout(
+      setDoc(doc(db, 'publicAnalytics', tid), {
+        tournamentId: tid,
+        tournamentName: tourney.name,
+        gameId: tourney.gameId,
+        teamKills,
+        playerKills,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true }),
+      10000,
+      'syncTournamentAnalytics:setDoc'
+    );
   } catch (err) {
     console.warn('Failed to sync public analytics doc:', err);
   }

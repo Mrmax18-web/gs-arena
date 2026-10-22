@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { syncTournamentAnalytics } from './tournamentService';
+import { withTimeout } from '../lib/timeout';
 
 const DEMO_TEAMS = [
   { name: 'Soul Esports', players: ['Mortal', 'Viper', 'Regaltos', 'Aman'] },
@@ -45,6 +46,10 @@ export interface DeleteDataResult {
   message?: string;
 }
 
+/**
+ * Populates a complete mock tournament with 16 teams and 5 completed matches.
+ * Uses bounded timeouts (10s for single writes, 15s for batch commits) to prevent hangs.
+ */
 export async function generateDemoData(): Promise<{
   success: boolean;
   tournamentId: string;
@@ -58,32 +63,36 @@ export async function generateDemoData(): Promise<{
 
   // 1. Create or overwrite Demo Tournament doc
   const tourneyRef = doc(firestore, 'tournaments', tid);
-  await setDoc(
-    tourneyRef,
-    {
-      id: tid,
-      name: 'Pro Esports Invitational (Demo)',
-      gameId: 'BGMI',
-      status: 'live',
-      registrationOpen: true,
-      rosterSize: 4,
-      scoringSnapshot: {
-        placementPoints: BGMI_PLACEMENT_POINTS,
-        killPoints: 1,
-        matchWinPoints: 1,
-        mvpWeights: {
-          kills: 2.5,
-          damage: 0.01,
-          assists: 1.0,
-          survivalSeconds: 0.2 / 60,
-          revives: 1.5,
+  await withTimeout(
+    setDoc(
+      tourneyRef,
+      {
+        id: tid,
+        name: 'Pro Esports Invitational (Demo)',
+        gameId: 'BGMI',
+        status: 'live',
+        registrationOpen: true,
+        rosterSize: 4,
+        scoringSnapshot: {
+          placementPoints: BGMI_PLACEMENT_POINTS,
+          killPoints: 1,
+          matchWinPoints: 1,
+          mvpWeights: {
+            kills: 2.5,
+            damage: 0.01,
+            assists: 1.0,
+            survivalSeconds: 0.2 / 60,
+            revives: 1.5,
+          },
         },
+        isDemo: true,
+        createdAt: now,
+        updatedAt: now,
       },
-      isDemo: true,
-      createdAt: now,
-      updatedAt: now,
-    },
-    { merge: true }
+      { merge: true }
+    ),
+    10000,
+    'generateDemoData:setTourneyDoc'
   );
 
   // 2. Create 16 Public Teams
@@ -103,7 +112,7 @@ export async function generateDemoData(): Promise<{
       { merge: true }
     );
   });
-  await teamsBatch.commit();
+  await withTimeout(teamsBatch.commit(), 15000, 'generateDemoData:teamsBatch');
 
   // 3. Create 5 Matches with Full Results & Player Stats
   const matchesBatch = writeBatch(firestore);
@@ -174,10 +183,10 @@ export async function generateDemoData(): Promise<{
       { merge: true }
     );
   }
-  await matchesBatch.commit();
+  await withTimeout(matchesBatch.commit(), 15000, 'generateDemoData:matchesBatch');
 
   // 4. Populate publicAnalytics so leaderboards and graphs display immediately
-  await syncTournamentAnalytics(tid);
+  await withTimeout(syncTournamentAnalytics(tid), 10000, 'generateDemoData:syncAnalytics');
 
   return {
     success: true,

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useGame } from '../context/GameContext';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { tournamentConverter, matchConverter, teamConverter, registrationConverter } from '../lib/converters';
@@ -12,6 +12,7 @@ import { Select } from '../components/ui/Select';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
+import { withTimeout, TimeoutError } from '../lib/timeout';
 import { createTournament, updateTournament, deleteTournament, deleteMatch } from '../services/tournamentService';
 import { MatchForm } from '../components/admin/MatchForm';
 import { ResultsEditor } from '../components/admin/ResultsEditor';
@@ -94,6 +95,14 @@ export const AdminPage: React.FC = () => {
   const [tourneyUpiId, setTourneyUpiId] = useState('');
   const [qrUploadProgress, setQrUploadProgress] = useState<number | null>(null);
   const [savingTourney, setSavingTourney] = useState(false);
+  const isMountedRef = useRef(false);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Delete Confirmation States (Law 2: Figure and Ground)
   const [deleteTourneyId, setDeleteTourneyId] = useState<string | null>(null);
@@ -183,8 +192,13 @@ export const AdminPage: React.FC = () => {
     setTourneyModalOpen(true);
   };
 
+  /**
+   * Handles creating or updating a tournament document.
+   * Uses lifecycle checks (isMountedRef), double-submit locking, and an overall 30s deadline.
+   */
   const handleSaveTourney = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savingTourney) return;
     if (!tourneyName.trim()) {
       error('Name Required', 'Please enter tournament name.');
       return;
@@ -194,41 +208,66 @@ export const AdminPage: React.FC = () => {
 
     setSavingTourney(true);
     try {
-      if (editingTourney?.id) {
-        await updateTournament(editingTourney.id, {
-          name: tourneyName.trim(),
-          status: tourneyStatus,
-          registrationOpen: tourneyRegOpen,
-          entryFeePaise,
-          upiQrUrl: tourneyUpiQrUrl.trim() || undefined,
-          upiId: tourneyUpiId.trim() || undefined,
-        });
-        success('Tournament Updated', `"${tourneyName}" updated.`);
-      } else {
-        const newId = await createTournament(
-          tourneyName.trim(),
-          gameId,
-          4,
-          undefined,
-          {
-            entryFeePaise,
-            upiQrUrl: tourneyUpiQrUrl.trim() || undefined,
-            upiId: tourneyUpiId.trim() || undefined,
+      await withTimeout(
+        (async () => {
+          if (editingTourney?.id) {
+            await updateTournament(editingTourney.id, {
+              name: tourneyName.trim(),
+              status: tourneyStatus,
+              registrationOpen: tourneyRegOpen,
+              entryFeePaise,
+              upiQrUrl: tourneyUpiQrUrl.trim() || undefined,
+              upiId: tourneyUpiId.trim() || undefined,
+            });
+            if (isMountedRef.current) {
+              success('Tournament Updated', `"${tourneyName}" updated.`);
+            }
+          } else {
+            const newId = await createTournament(
+              tourneyName.trim(),
+              gameId,
+              4,
+              undefined,
+              {
+                entryFeePaise,
+                upiQrUrl: tourneyUpiQrUrl.trim() || undefined,
+                upiId: tourneyUpiId.trim() || undefined,
+              }
+            );
+            if (isMountedRef.current) {
+              setSelectedTourneyId(newId);
+              success('Tournament Created', `"${tourneyName}" created.`);
+            }
           }
+          if (isMountedRef.current) {
+            refetchTournaments();
+            setTourneyModalOpen(false);
+          }
+        })(),
+        30000,
+        'handleSaveTourneyFlow'
+      );
+    } catch (err: unknown) {
+      if (!isMountedRef.current) return;
+      if (err instanceof TimeoutError || (err as { name?: string })?.name === 'TimeoutError') {
+        error(
+          'Save Pending',
+          'Save is taking longer than expected. Its status is unknown; check the record when your connection returns before retrying.'
         );
-        setSelectedTourneyId(newId);
-        success('Tournament Created', `"${tourneyName}" created.`);
+      } else {
+        const errObj = err as { code?: string; message?: string };
+        const isPermissionErr =
+          errObj?.code === 'permission-denied' ||
+          errObj?.message?.toLowerCase().includes('permission');
+        const msg = isPermissionErr
+          ? 'Permission denied: Ensure you are signed in with dheerajsinghbaghel1306@gmail.com to create/edit tournaments.'
+          : (errObj?.message || 'Could not save tournament.');
+        error('Save Failed', msg);
       }
-      refetchTournaments();
-      setTourneyModalOpen(false);
-    } catch (err: any) {
-      const isPermissionErr = err?.code === 'permission-denied' || err?.message?.toLowerCase().includes('permission');
-      const msg = isPermissionErr
-        ? 'Permission denied: Ensure you are signed in with dheerajsinghbaghel1306@gmail.com to create/edit tournaments.'
-        : (err?.message || 'Could not save tournament.');
-      error('Save Failed', msg);
     } finally {
-      setSavingTourney(false);
+      if (isMountedRef.current) {
+        setSavingTourney(false);
+      }
     }
   };
 
@@ -761,7 +800,13 @@ export const AdminPage: React.FC = () => {
             <Button variant="ghost" size="sm" onClick={() => setTourneyModalOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" size="sm" loading={savingTourney}>
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              loading={savingTourney}
+              disabled={savingTourney}
+            >
               {editingTourney ? 'Update Tournament' : 'Create Tournament'}
             </Button>
           </div>

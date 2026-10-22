@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { Button } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
@@ -8,6 +8,7 @@ import {
   deleteAllData,
   DeleteDataResult,
 } from '../../services/demoDataService';
+import { withTimeout, TimeoutError } from '../../lib/timeout';
 import { Icon } from '@iconify/react';
 
 export const DemoDataTab: React.FC<{ onDataChanged?: () => void }> = ({ onDataChanged }) => {
@@ -19,20 +20,51 @@ export const DemoDataTab: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
   const [deleting, setDeleting] = useState(false);
   const [lastResult, setLastResult] = useState<DeleteDataResult | null>(null);
 
+  const isMountedRef = useRef(false);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  /**
+   * Generates a mock tournament with 16 teams and 5 matches.
+   * Guarded by double-submit prevention, isMountedRef lifecycle protection, and a 30s deadline.
+   */
   const handleGenerate = async () => {
+    if (generating) return;
     setGenerating(true);
     try {
-      const res = await generateDemoData();
-      if (res.success) {
-        success('Demo Data Generated', res.message || '16 teams and 5 matches created with player statistics.');
-        if (onDataChanged) onDataChanged();
+      await withTimeout(
+        (async () => {
+          const res = await generateDemoData();
+          if (!isMountedRef.current) return;
+          if (res.success) {
+            success('Demo Data Generated', res.message || '16 teams and 5 matches created with player statistics.');
+            if (onDataChanged) onDataChanged();
+          } else {
+            error('Generation Error', res.message || 'Could not generate demo data.');
+          }
+        })(),
+        30000,
+        'generateDemoDataFlow'
+      );
+    } catch (err: unknown) {
+      if (!isMountedRef.current) return;
+      if (err instanceof TimeoutError || (err as { name?: string })?.name === 'TimeoutError') {
+        error(
+          'Save Pending',
+          'Save is taking longer than expected. Its status is unknown; check the record when your connection returns before retrying.'
+        );
       } else {
-        error('Generation Error', res.message || 'Could not generate demo data.');
+        const errObj = err as { message?: string };
+        error('Generation Error', errObj?.message || 'Failed to generate demo data in Firestore.');
       }
-    } catch (err: any) {
-      error('Generation Error', err?.message || 'Failed to generate demo data in Firestore.');
     } finally {
-      setGenerating(false);
+      if (isMountedRef.current) {
+        setGenerating(false);
+      }
     }
   };
 
@@ -82,6 +114,7 @@ export const DemoDataTab: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
             variant="primary"
             size="md"
             loading={generating}
+            disabled={generating}
             onClick={handleGenerate}
             icon="solar:magic-stick-3-bold"
             className="shrink-0"
