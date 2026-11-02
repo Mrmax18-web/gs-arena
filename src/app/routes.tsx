@@ -2,10 +2,12 @@ import React, { Suspense } from 'react';
 import { Routes, Route, RouteObject } from 'react-router-dom';
 import { AppLayout } from '../components/layout/AppLayout';
 import { RoleGuard } from '../components/layout/RoleGuard';
-import { LoadingSpinner } from '../components/ui/LoadingSpinner';
+import { PageLoader } from '../components/ui/PageLoader';
 
 // Keep landing page eager to optimize first paint
-import { GameSelectPage } from '../pages/GameSelectPage';
+const GameSelectPage = React.lazy(() =>
+  import('../pages/GameSelectPage').then((m) => ({ default: m.GameSelectPage }))
+);
 
 // Lazy-load non-landing routes, adapting named exports
 const LeaderboardPage = React.lazy(() =>
@@ -51,7 +53,7 @@ const NotFoundPage = React.lazy(() =>
 );
 
 export const AppRoutes: React.FC = () => (
-  <Suspense fallback={<LoadingSpinner label="Loading GS Arena..." />}>
+  <Suspense fallback={<PageLoader />}>
     <Routes>
       <Route path="/" element={<AppLayout />}>
         <Route index element={<GameSelectPage />} />

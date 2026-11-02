@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   collection,
   query,
+  limit,
   onSnapshot,
   QueryConstraint,
   FirestoreDataConverter,
@@ -48,9 +49,13 @@ export function useFirestoreCollection<T>(
 
     try {
       const colRef = collection(db, collectionPath);
+      const hasLimit = constraints.some(
+        (c) => (c as { type?: string }).type === 'limit' || (c as { type?: string }).type === 'limitToLast'
+      );
+      const effectiveConstraints = hasLimit ? constraints : [...constraints, limit(50)];
       const q: Query<T | DocumentData, DocumentData> = converter
-        ? query(colRef.withConverter(converter), ...constraints)
-        : query(colRef, ...constraints);
+        ? query(colRef.withConverter(converter), ...effectiveConstraints)
+        : query(colRef, ...effectiveConstraints);
 
       const unsubscribe = onSnapshot(
         q,

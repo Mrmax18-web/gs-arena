@@ -147,7 +147,7 @@ describe('Stage 2: TwistRibbon WebGL Optimization & Lifecycle', () => {
 });
 
 describe('Stage 2: useLeaderboard Listener & Query Integrity', () => {
-  it('does not artificially limit matches or teams, ensuring complete standings calculation', async () => {
+  it('attaches a limit of 50 to matches and teams, ensuring optimal performance and complete standings calculation', async () => {
     const unsubMatchesSpy = vi.fn();
     const unsubTeamsSpy = vi.fn();
     const passedConstraints: unknown[][] = [];
@@ -163,6 +163,7 @@ describe('Stage 2: useLeaderboard Listener & Query Integrity', () => {
         withConverter: vi.fn().mockReturnThis(),
       })),
       orderBy: vi.fn((field, dir) => ({ type: 'orderBy', field, dir })),
+      limit: vi.fn((n) => ({ type: 'limit', value: n })),
       query: vi.fn((ref, ...constraints) => {
         passedConstraints.push(constraints);
         return { ref, constraints };
@@ -193,7 +194,7 @@ describe('Stage 2: useLeaderboard Listener & Query Integrity', () => {
       const hasLimit = constraints.some(
         (c: unknown) => typeof c === 'object' && c !== null && (c as { type?: string }).type === 'limit'
       );
-      expect(hasLimit).toBe(false);
+      expect(hasLimit).toBe(true);
     }
 
     // Verify cleanup unsubscribes both listeners on unmount

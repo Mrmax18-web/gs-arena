@@ -10,6 +10,8 @@ import { isAdmin, isCreator } from '../../lib/permissions';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { GameId } from '../../types/game';
 import { useAppearance } from '../../hooks/useAppearance';
+import { signOut as fbSignOut } from 'firebase/auth';
+import { auth } from '../../lib/firebase';
 
 interface NavItemConfig {
   to: string;
@@ -71,6 +73,19 @@ export const Sidebar: React.FC<{ mobileOpen: boolean; setMobileOpen: (open: bool
   });
 
   const [showCSConfirm, setShowCSConfirm] = useState(false);
+
+  const handleSignOut = async () => {
+    try {
+      if (auth) {
+        await fbSignOut(auth);
+      }
+      await signOut();
+    } catch (err) {
+      console.error('Sign out failed:', err);
+    } finally {
+      navigate('/login');
+    }
+  };
 
   // Auto-expand sections when navigating directly to a nested route
   useEffect(() => {
@@ -444,12 +459,12 @@ export const Sidebar: React.FC<{ mobileOpen: boolean; setMobileOpen: (open: bool
         </button>
 
         {/* Auth control */}
-        {user ? (
+        {user || role !== 'public' ? (
           <div className="space-y-1">
             {(!collapsed || mobileOpen) && (
               <div className="px-3 py-1 text-[11px] text-slate-500 dark:text-slate-400 truncate">
                 <span className="block truncate font-medium text-slate-700 dark:text-slate-200">
-                  {user.displayName || user.email || 'Verified User'}
+                  {user?.displayName || user?.email || (role !== 'public' ? 'Creator Session' : 'Verified User')}
                 </span>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-brand-500">
                   Role: {role}
@@ -458,7 +473,7 @@ export const Sidebar: React.FC<{ mobileOpen: boolean; setMobileOpen: (open: bool
             )}
             <button
               type="button"
-              onClick={() => signOut()}
+              onClick={handleSignOut}
               className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-xs font-semibold text-rose-500 hover:bg-rose-500/10 transition-colors focus-visible:ring-2 focus-visible:ring-rose-500 focus:outline-none ${
                 collapsed && !mobileOpen ? 'justify-center px-0' : ''
               }`}

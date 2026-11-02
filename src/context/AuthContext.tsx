@@ -124,24 +124,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      const isCurrentLocalCreator = typeof window !== 'undefined' && localStorage.getItem('gs_arena_creator') === 'true';
-      if (isCurrentLocalCreator) {
-        setRole('creator');
-        setIsAdminUser(true);
-        setIsCreatorUser(true);
-      } else if (currentUser) {
-        const claims = await extractClaims(currentUser);
-        setRole(claims.role);
-        setIsAdminUser(claims.isAdmin);
-        setIsCreatorUser(claims.isCreator);
-      } else {
-        setRole('public');
-        setIsAdminUser(false);
-        setIsCreatorUser(false);
+      try {
+        setUser(currentUser);
+        const isCurrentLocalCreator = typeof window !== 'undefined' && localStorage.getItem('gs_arena_creator') === 'true';
+        if (isCurrentLocalCreator) {
+          setRole('creator');
+          setIsAdminUser(true);
+          setIsCreatorUser(true);
+        } else if (currentUser) {
+          const claims = await extractClaims(currentUser);
+          setRole(claims.role);
+          setIsAdminUser(claims.isAdmin);
+          setIsCreatorUser(claims.isCreator);
+        } else {
+          setRole('public');
+          setIsAdminUser(false);
+          setIsCreatorUser(false);
+        }
+      } catch (err: any) {
+        console.warn('Auth state processing failed:', err?.message || err);
+      } finally {
+        setClaimsLoaded(true);
+        setLoading(false);
       }
-      setClaimsLoaded(true);
-      setLoading(false);
     });
 
     return () => unsubscribe();
