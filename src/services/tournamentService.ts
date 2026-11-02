@@ -6,6 +6,7 @@ import {
   deleteDoc,
   getDoc,
   getDocs,
+  limit,
   query,
   where,
   runTransaction,
@@ -116,7 +117,7 @@ export async function createMatch(
 
   // Verify duplicate match number
   const matchesRef = collection(db, 'tournaments', tid, 'matches').withConverter(matchConverter);
-  const existingQ = query(matchesRef, where('matchNumber', '==', matchData.matchNumber));
+  const existingQ = query(matchesRef, where('matchNumber', '==', matchData.matchNumber), limit(50));
   const snap = await getDocs(existingQ);
   if (!snap.empty) {
     throw new Error(`Match Number #${matchData.matchNumber} already exists in this tournament.`);
@@ -226,7 +227,7 @@ export async function getMatchSecrets(mid: string): Promise<MatchSecret | null> 
 export async function getTournamentTeams(tid: string): Promise<Team[]> {
   if (!db) return [];
   const colRef = collection(db, 'tournaments', tid, 'teams').withConverter(teamConverter);
-  const snap = await getDocs(colRef);
+  const snap = await getDocs(query(colRef, limit(50)));
   return snap.docs.map((d) => d.data());
 }
 
@@ -242,7 +243,7 @@ export async function syncTournamentAnalytics(tid: string): Promise<void> {
     const tourney = tDoc.data();
 
     const matchesRef = collection(db, 'tournaments', tid, 'matches').withConverter(matchConverter);
-    const snap = await getDocs(query(matchesRef, where('status', '==', 'completed')));
+    const snap = await getDocs(query(matchesRef, where('status', '==', 'completed'), limit(50)));
     const matches = snap.docs.map((d) => d.data());
 
     const teamMap = new Map<string, { teamId: string; teamName: string; totalKills: number; matchesPlayed: number }>();

@@ -14,6 +14,7 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
+        experimentalMinChunkSize: 20000,
         manualChunks(id) {
           const normalizedId = id.replace(/\\/g, '/');
           if (normalizedId.includes('node_modules/xlsx')) {

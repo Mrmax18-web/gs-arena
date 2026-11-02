@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   getDocs,
+  limit,
   query,
   where,
   writeBatch,
@@ -252,16 +253,16 @@ export async function deleteAllData(
 
   if (demoOnly) {
     // 1. Delete tournaments where isDemo == true
-    const tourneysQ = query(collection(firestore, 'tournaments'), where('isDemo', '==', true));
+    const tourneysQ = query(collection(firestore, 'tournaments'), where('isDemo', '==', true), limit(50));
     const snap = await getDocs(tourneysQ);
 
     for (const tDoc of snap.docs) {
       const tid = tDoc.id;
       // Delete subcollections matches & teams
-      const matchesSnap = await getDocs(collection(firestore, 'tournaments', tid, 'matches'));
+      const matchesSnap = await getDocs(query(collection(firestore, 'tournaments', tid, 'matches'), limit(50)));
       matchesSnap.docs.forEach((m) => refsToDelete.push(m.ref));
 
-      const teamsSnap = await getDocs(collection(firestore, 'tournaments', tid, 'teams'));
+      const teamsSnap = await getDocs(query(collection(firestore, 'tournaments', tid, 'teams'), limit(50)));
       teamsSnap.docs.forEach((tm) => refsToDelete.push(tm.ref));
 
       refsToDelete.push(tDoc.ref);
@@ -271,10 +272,10 @@ export async function deleteAllData(
     // Also check explicit demo tournament ID if not already caught
     try {
       const demoRef = doc(firestore, 'tournaments', 'demo_bgmi_championship');
-      const matchesSnap = await getDocs(collection(firestore, 'tournaments', 'demo_bgmi_championship', 'matches'));
+      const matchesSnap = await getDocs(query(collection(firestore, 'tournaments', 'demo_bgmi_championship', 'matches'), limit(50)));
       matchesSnap.docs.forEach((m) => refsToDelete.push(m.ref));
 
-      const teamsSnap = await getDocs(collection(firestore, 'tournaments', 'demo_bgmi_championship', 'teams'));
+      const teamsSnap = await getDocs(query(collection(firestore, 'tournaments', 'demo_bgmi_championship', 'teams'), limit(50)));
       teamsSnap.docs.forEach((tm) => refsToDelete.push(tm.ref));
 
       refsToDelete.push(demoRef);
@@ -283,32 +284,32 @@ export async function deleteAllData(
     }
   } else {
     // 2. Full wipe: tournaments, registrations, matchSecrets, contactMessages
-    const tourneysSnap = await getDocs(collection(firestore, 'tournaments'));
+    const tourneysSnap = await getDocs(query(collection(firestore, 'tournaments'), limit(50)));
     for (const tDoc of tourneysSnap.docs) {
       const tid = tDoc.id;
-      const matchesSnap = await getDocs(collection(firestore, 'tournaments', tid, 'matches'));
+      const matchesSnap = await getDocs(query(collection(firestore, 'tournaments', tid, 'matches'), limit(50)));
       matchesSnap.docs.forEach((m) => refsToDelete.push(m.ref));
 
-      const teamsSnap = await getDocs(collection(firestore, 'tournaments', tid, 'teams'));
+      const teamsSnap = await getDocs(query(collection(firestore, 'tournaments', tid, 'teams'), limit(50)));
       teamsSnap.docs.forEach((tm) => refsToDelete.push(tm.ref));
 
       refsToDelete.push(tDoc.ref);
       deletedTournaments++;
     }
 
-    const regSnap = await getDocs(collection(firestore, 'registrations'));
+    const regSnap = await getDocs(query(collection(firestore, 'registrations'), limit(50)));
     regSnap.docs.forEach((r) => {
       refsToDelete.push(r.ref);
       deletedRegistrations++;
     });
 
-    const secSnap = await getDocs(collection(firestore, 'matchSecrets'));
+    const secSnap = await getDocs(query(collection(firestore, 'matchSecrets'), limit(50)));
     secSnap.docs.forEach((s) => {
       refsToDelete.push(s.ref);
       deletedSecrets++;
     });
 
-    const conSnap = await getDocs(collection(firestore, 'contactMessages'));
+    const conSnap = await getDocs(query(collection(firestore, 'contactMessages'), limit(50)));
     conSnap.docs.forEach((c) => {
       refsToDelete.push(c.ref);
       deletedContacts++;

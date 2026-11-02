@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   getDocs,
+  limit,
   query,
   where,
   updateDoc,
@@ -28,7 +29,8 @@ export async function submitRegistration(
     const nameQuery = query(
       regCol,
       where('tournamentId', '==', input.tournamentId),
-      where('teamName', '==', input.teamName.trim())
+      where('teamName', '==', input.teamName.trim()),
+      limit(50)
     );
     const nameSnap = await getDocs(nameQuery);
     if (!nameSnap.empty) {
