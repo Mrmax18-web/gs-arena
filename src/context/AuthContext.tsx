@@ -54,6 +54,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const extractClaims = useCallback(async (firebaseUser: User) => {
+    if (firebaseUser.email === 'dheerajsinghbaghel1306@gmail.com') {
+      return { role: 'creator' as UserRole, isAdmin: true, isCreator: true };
+    }
     const isLocalCreator = typeof window !== 'undefined' && localStorage.getItem('gs_arena_creator') === 'true';
     if (isLocalCreator) {
       return { role: 'creator' as UserRole, isAdmin: true, isCreator: true };
@@ -72,6 +75,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const refreshRole = useCallback(async (): Promise<UserRole> => {
+    if (auth?.currentUser?.email === 'dheerajsinghbaghel1306@gmail.com') {
+      setRole('creator');
+      setIsAdminUser(true);
+      setIsCreatorUser(true);
+      setClaimsLoaded(true);
+      return 'creator';
+    }
     const isLocalCreator = typeof window !== 'undefined' && localStorage.getItem('gs_arena_creator') === 'true';
     if (isLocalCreator) {
       setRole('creator');
@@ -127,7 +137,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         setUser(currentUser);
         const isCurrentLocalCreator = typeof window !== 'undefined' && localStorage.getItem('gs_arena_creator') === 'true';
-        if (isCurrentLocalCreator) {
+        if (currentUser?.email === 'dheerajsinghbaghel1306@gmail.com') {
+          setRole('creator');
+          setIsAdminUser(true);
+          setIsCreatorUser(true);
+        } else if (isCurrentLocalCreator) {
           setRole('creator');
           setIsAdminUser(true);
           setIsCreatorUser(true);

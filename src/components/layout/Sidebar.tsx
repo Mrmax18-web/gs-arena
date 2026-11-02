@@ -10,7 +10,7 @@ import { isAdmin, isCreator } from '../../lib/permissions';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { GameId } from '../../types/game';
 import { useAppearance } from '../../hooks/useAppearance';
-import { signOut as fbSignOut } from 'firebase/auth';
+import { signOut } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 
 interface NavItemConfig {
@@ -36,7 +36,7 @@ export const Sidebar: React.FC<{ mobileOpen: boolean; setMobileOpen: (open: bool
   mobileOpen,
   setMobileOpen,
 }) => {
-  const { user, role, signOut, isCreator: isCreatorClaim, loading, claimsLoaded } = useAuth();
+  const { user, role, signOut: authSignOut, isCreator: isCreatorClaim, loading, claimsLoaded } = useAuth();
   const { gameId, setGameId } = useGame();
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
@@ -77,9 +77,9 @@ export const Sidebar: React.FC<{ mobileOpen: boolean; setMobileOpen: (open: bool
   const handleSignOut = async () => {
     try {
       if (auth) {
-        await fbSignOut(auth);
+        await signOut(auth);
       }
-      await signOut();
+      await authSignOut();
     } catch (err) {
       console.error('Sign out failed:', err);
     } finally {
@@ -484,17 +484,30 @@ export const Sidebar: React.FC<{ mobileOpen: boolean; setMobileOpen: (open: bool
             </button>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => navigate('/login')}
-            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:bg-brand-500/10 transition-colors focus-visible:ring-2 focus-visible:ring-brand-500 focus:outline-none ${
-              collapsed && !mobileOpen ? 'justify-center px-0' : ''
-            }`}
-            title="Sign In"
-          >
-            <Icon icon="solar:login-2-bold" className="text-lg shrink-0" />
-            {(!collapsed || mobileOpen) && <span>Sign In</span>}
-          </button>
+          <div className="space-y-1">
+            <button
+              type="button"
+              onClick={() => navigate('/login')}
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:bg-brand-500/10 transition-colors focus-visible:ring-2 focus-visible:ring-brand-500 focus:outline-none ${
+                collapsed && !mobileOpen ? 'justify-center px-0' : ''
+              }`}
+              title="Sign In"
+            >
+              <Icon icon="solar:login-2-bold" className="text-lg shrink-0" />
+              {(!collapsed || mobileOpen) && <span>Sign In</span>}
+            </button>
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-xs font-semibold text-rose-500/80 hover:text-rose-500 hover:bg-rose-500/10 transition-colors focus-visible:ring-2 focus-visible:ring-rose-500 focus:outline-none ${
+                collapsed && !mobileOpen ? 'justify-center px-0' : ''
+              }`}
+              title="Sign Out"
+            >
+              <Icon icon="solar:logout-2-bold" className="text-lg shrink-0" />
+              {(!collapsed || mobileOpen) && <span>Sign Out</span>}
+            </button>
+          </div>
         )}
       </div>
     </div>

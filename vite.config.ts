@@ -15,21 +15,25 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes('node_modules/xlsx')) {
+          const normalizedId = id.replace(/\\/g, '/');
+          if (normalizedId.includes('node_modules/xlsx')) {
             return 'vendor-xlsx';
           }
-          if (id.includes('node_modules/firebase') || id.includes('node_modules/@firebase')) {
+          if (
+            normalizedId.includes('node_modules/firebase') ||
+            normalizedId.includes('node_modules/@firebase')
+          ) {
             return 'firebase';
           }
           if (
-            id.includes('node_modules/react') ||
-            id.includes('node_modules/react-dom') ||
-            id.includes('node_modules/react-router') ||
-            id.includes('node_modules/scheduler')
+            normalizedId.includes('node_modules/react') ||
+            normalizedId.includes('node_modules/react-dom') ||
+            normalizedId.includes('node_modules/react-router') ||
+            normalizedId.includes('node_modules/scheduler')
           ) {
             return 'react';
           }
-          if (id.includes('node_modules/lucide-react')) {
+          if (normalizedId.includes('node_modules/lucide-react')) {
             return 'lucide-react';
           }
         },
