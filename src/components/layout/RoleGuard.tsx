@@ -15,7 +15,10 @@ export const RoleGuard: React.FC<RoleGuardProps> = ({ allowedRoles, children }) 
   const { user, role, loading } = useAuth();
   const navigate = useNavigate();
 
-  if (user?.email === 'dheerajsinghbaghel1306@gmail.com') return <>{children}</>;
+  const isCreator = user?.email === 'dheerajsinghbaghel1306@gmail.com';
+  if (isCreator) {
+    return <>{children}</>;
+  }
 
   if (loading) {
     return (

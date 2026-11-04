@@ -62,8 +62,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { role: 'creator' as UserRole, isAdmin: true, isCreator: true };
     }
     try {
-      const tokenResult = await firebaseUser.getIdTokenResult();
-      const claims = tokenResult.claims;
+      const tokenPromise = firebaseUser.getIdTokenResult();
+      const timeoutPromise = new Promise<any>((resolve) =>
+        setTimeout(() => resolve({ claims: {} }), 3500)
+      );
+      const tokenResult = await Promise.race([tokenPromise, timeoutPromise]);
+      const claims = tokenResult?.claims || {};
       const isCreatorClaim = Boolean(claims.creator === true || claims.role === 'creator');
       const isAdminClaim = Boolean(claims.admin === true || claims.role === 'admin' || isCreatorClaim);
       const resolvedRole: UserRole = isCreatorClaim ? 'creator' : isAdminClaim ? 'admin' : 'public';
