@@ -13,7 +13,7 @@ import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
 import { withTimeout, TimeoutError } from '../lib/timeout';
-import { createTournament, updateTournament, deleteTournament, deleteMatch, preallocateTournamentId } from '../services/tournamentService';
+import { createTournament, updateTournament, deleteTournament, deleteMatch, preallocateTournamentId, sanitizePayload } from '../services/tournamentService';
 import { MatchForm } from '../components/admin/MatchForm';
 import { ResultsEditor } from '../components/admin/ResultsEditor';
 import { RoomCredentialsForm } from '../components/admin/RoomCredentialsForm';
@@ -236,14 +236,17 @@ export const AdminPage: React.FC = () => {
           const saveDocPromise = (async () => {
             let resTid = editingTourney?.id || allocatedTourneyId || undefined;
             if (editingTourney?.id) {
-              await updateTournament(editingTourney.id, {
-                name: tourneyName.trim(),
-                status: tourneyStatus,
-                registrationOpen: tourneyRegOpen,
-                entryFeePaise,
-                upiQrUrl: tourneyUpiQrUrl.trim() || undefined,
-                upiId: tourneyUpiId.trim() || undefined,
-              });
+              await updateTournament(
+                editingTourney.id,
+                sanitizePayload({
+                  name: tourneyName.trim(),
+                  status: tourneyStatus,
+                  registrationOpen: tourneyRegOpen,
+                  entryFeePaise,
+                  upiQrUrl: tourneyUpiQrUrl.trim() || undefined,
+                  upiId: tourneyUpiId.trim() || undefined,
+                })
+              );
               resTid = editingTourney.id;
             } else {
               resTid = await createTournament(
@@ -251,11 +254,11 @@ export const AdminPage: React.FC = () => {
                 gameId,
                 4,
                 undefined,
-                {
+                sanitizePayload({
                   entryFeePaise,
                   upiQrUrl: tourneyUpiQrUrl.trim() || undefined,
                   upiId: tourneyUpiId.trim() || undefined,
-                },
+                }),
                 allocatedTourneyId || undefined
               );
               if (isMountedRef.current) {

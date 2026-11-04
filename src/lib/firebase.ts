@@ -33,7 +33,9 @@ if (isFirebaseConfigured()) {
   
   try {
     // experimentalAutoDetectLongPolling fixes the WebChannel transport errors on Vercel
+    // ignoreUndefinedProperties globally ignores undefined values to prevent Firestore crashes
     db = initializeFirestore(app, {
+      ignoreUndefinedProperties: true,
       experimentalAutoDetectLongPolling: true,
     });
   } catch {
