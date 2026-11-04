@@ -657,7 +657,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
             )}
 
             {/* Team Name & Leader Name */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
                 label="Team Name *"
                 placeholder="e.g. Phoenix Squad"
@@ -679,7 +679,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
             </div>
 
             {/* Leader Email & Leader Phone */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
                 label="Team Leader Email *"
                 type="email"
@@ -871,7 +871,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                 <span className="text-xs font-bold text-amber-500 flex items-center gap-1.5">
                   <Icon icon="solar:user-bold" /> Player 1 (Captain / Starter)
                 </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <Input
                     placeholder="Player 1 Name / IGN"
                     value={player1Name}
@@ -894,7 +894,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                 <span className="text-xs font-bold text-amber-500 flex items-center gap-1.5">
                   <Icon icon="solar:user-bold" /> Player 2
                 </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <Input
                     placeholder="Player 2 Name / IGN"
                     value={player2Name}
@@ -917,7 +917,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                 <span className="text-xs font-bold text-amber-500 flex items-center gap-1.5">
                   <Icon icon="solar:user-bold" /> Player 3
                 </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <Input
                     placeholder="Player 3 Name / IGN"
                     value={player3Name}
@@ -940,7 +940,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                 <span className="text-xs font-bold text-amber-500 flex items-center gap-1.5">
                   <Icon icon="solar:user-bold" /> Player 4
                 </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <Input
                     placeholder="Player 4 Name / IGN"
                     value={player4Name}

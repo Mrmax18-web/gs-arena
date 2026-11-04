@@ -32,7 +32,15 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             id={inputId}
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? `${inputId}-error` : helperText ? `${inputId}-helper` : undefined}
-            className={`w-full rounded-xl border bg-white/70 dark:bg-black/20 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 backdrop-blur-md transition-all duration-200 focus:border-brand-500 focus:bg-white dark:focus:bg-black/40 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-50 ${
+            onFocus={(e) => {
+              try {
+                e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              } catch {
+                // Ignore
+              }
+              props.onFocus?.(e);
+            }}
+            className={`w-full rounded-xl border bg-white/70 dark:bg-black/20 px-3.5 py-2.5 text-base text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 backdrop-blur-md transition-all duration-200 focus:border-brand-500 focus:bg-white dark:focus:bg-black/40 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-50 ${
               leftIcon ? 'pl-10' : ''
             } ${rightIcon ? 'pr-10' : ''} ${
               error
