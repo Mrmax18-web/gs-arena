@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AppProviders } from './app/providers';
 import { AppLayout } from './components/layout/AppLayout';
 import { RoleGuard } from './components/layout/RoleGuard';
-import { PageLoader } from './components/ui/PageLoader';
+import { GameLoader } from './components/ui/GameLoader';
 
 // Route Lazy Loading
 const GameSelectPage = React.lazy(() =>
@@ -55,7 +55,7 @@ export const App: React.FC = () => {
   return (
     <AppProviders>
       <BrowserRouter>
-        <Suspense fallback={<PageLoader />}>
+        <Suspense fallback={<GameLoader />}>
           <Routes>
             <Route path="/" element={<AppLayout />}>
               <Route index element={<GameSelectPage />} />
