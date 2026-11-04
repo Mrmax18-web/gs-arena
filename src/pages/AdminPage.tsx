@@ -267,7 +267,11 @@ export const AdminPage: React.FC = () => {
 
           const raceResult = await Promise.race([saveDocPromise, timeoutPromise]);
           if (raceResult.isTimeout) {
-            info('Save pending. Network is slow. Syncing in background.');
+            if (typeof info === 'function') {
+              info('Save pending. Network is slow. Syncing in background.');
+            } else if (typeof error === 'function') {
+              error('Save Pending', 'Save pending. Network is slow. Syncing in background.');
+            }
           }
           targetTid = raceResult.isTimeout
             ? (editingTourney?.id || allocatedTourneyId || undefined)
@@ -337,7 +341,10 @@ export const AdminPage: React.FC = () => {
     } catch (err: unknown) {
       if (!isMountedRef.current) return;
       if (err instanceof TimeoutError || (err as { name?: string })?.name === 'TimeoutError') {
-        info('Save Pending', 'Save pending. Network is slow. Syncing in background.');
+        error(
+          'Save Pending',
+          'Save is taking longer than expected. Its status is unknown; check the record when your connection returns before retrying.'
+        );
       } else {
         const errObj = err as { code?: string; message?: string };
         const isPermissionErr =
