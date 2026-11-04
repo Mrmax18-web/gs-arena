@@ -2,171 +2,96 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ===============================================================
-    // Assumed Data Model
-    // ===============================================================
-    //
-    // Collection: config
-    // Document ID: {doc} (e.g., system, appearance)
-    // Fields: appearance settings, theme, typography, system configuration
-    // Access: Public read, Creator or Admin write
-    //
-    // Collection: games
-    // Document ID: {gameId} (e.g., bgmi, ff, codm)
-    // Fields: name, title, description, bannerUrl, active, formats
-    // Access: Public read, Creator or Admin write
-    //
-    // Collection: tournaments
-    // Document ID: {tid}
-    // Fields: title, gameId, bannerUrl, status, maxTeams, prizePool, createdAt
-    // Subcollections:
-    //   - matches/{mid}: match schedules, room credentials, status, results
-    //   - teams/{teamId}: team info, captain, roster, standing, points
-    //   - otrClaims/{otr}: one-time registration claim verification
-    // Access: Public read, Admin write (otrClaims allows public create)
-    //
-    // Collection: publicAnalytics
-    // Document ID: {tid}
-    // Fields: views, registrationsCount, aggregatedMatchStats
-    // Access: Public read, Admin write
-    //
-    // Collection: matchSecrets
-    // Document ID: {mid}
-    // Fields: roomId, roomPassword, serverKey, adminNotes
-    // Access: Public read, Admin write
-    //
-    // Collection: registrations
-    // Document ID: {rid}
-    // Fields: tournamentId, teamName, leaderName, leaderEmail, leaderPhone, players, otr, paymentStatus, status
-    // Access: Public read, validated public create (no auth required), Admin update & delete
-    //
-    // Collection: adminRequests
-    // Document ID: {uid}
-    // Fields: uid, email, displayName, reason, status, createdAt
-    // Access: Public read, user create, Creator update & delete
-    //
-    // Collection: users
-    // Document ID: {uid}
-    // Fields: uid, email, displayName, role, photoURL, createdAt, updatedAt
-    // Access: Public read, authenticated user owner or Creator write
-    //
-    // Collection: contactMessages
-    // Document ID: {id}
-    // Fields: name, email, subject, message, submittedAt
-    // Access: Public read, anyone create, Creator write
-    // ===============================================================
-
-    // ===============================================================
-    // Helper Functions
-    // ===============================================================
     function signedIn() {
       return request.auth != null;
     }
 
-    // Hardcoded creator email for bootstrap / primary administration
     function isCreator() {
       return signedIn() && request.auth.token.email == 'dheerajsinghbaghel1306@gmail.com';
     }
 
-    // Admin authorization check via token claim, token role, or creator bootstrap
     function isAdmin() {
       return isCreator() || (signedIn() && (request.auth.token.admin == true || request.auth.token.role == 'admin'));
     }
 
-    // Validation for public team registration (anti-spam, integrity)
     function isValidRegistration(data) {
       return data.keys().hasAll(['tournamentId', 'teamName', 'leaderEmail', 'leaderPhone', 'players', 'status']) &&
              data.status == 'pending' &&
-             data.players is list &&
-             data.players.size() == 4 &&
-             data.teamName is string &&
-             data.teamName.size() >= 2 &&
-             data.teamName.size() <= 60 &&
-             data.leaderEmail is string &&
-             data.leaderEmail.size() <= 100 &&
-             data.leaderPhone is string &&
-             data.leaderPhone.size() >= 10 &&
-             data.leaderPhone.size() <= 20;
+             data.players is list && data.players.size() == 4 &&
+             data.teamName is string && data.teamName.size() >= 2 && data.teamName.size() <= 60 &&
+             data.leaderEmail is string && data.leaderEmail.size() <= 100 &&
+             data.leaderPhone is string && data.leaderPhone.size() >= 10 && data.leaderPhone.size() <= 20;
     }
 
     // ===============================================================
-    // 1. Root & Tournament Public Read Access
+    // 1. PUBLIC READ ACCESS (Only for safe collections)
     // ===============================================================
-    // Allow public reading of stats/leaderboards across all devices
-    match /{document=**} {
-      allow read: if true;
-    }
-
-    // Explicit recursive public read for tournaments, matches, and teams
     match /tournaments/{tid}/{document=**} {
-      allow read: if true;
+      allow read: if true; // Public can read matches and teams
     }
-
-    // ===============================================================
-    // 2. System Configuration & Games
-    // ===============================================================
+    
     match /config/{doc} {
+      allow read: if true;
       allow write: if isCreator() || isAdmin();
     }
 
     match /games/{gameId} {
+      allow read: if true;
       allow write: if isCreator() || isAdmin();
     }
 
+    match /publicAnalytics/{tid} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // ===============================================================
-    // 3. Tournaments & Subcollections
+    // 2. TOURNAMENTS (Write)
     // ===============================================================
     match /tournaments/{tid} {
       allow write: if isAdmin();
-
-      match /matches/{mid} {
-        allow write: if isAdmin();
+      match /matches/{mid} { allow write: if isAdmin(); }
+      match /teams/{teamId} { allow write: if isAdmin(); }
+      match /otrClaims/{otr} { 
+        allow create: if true; 
+        allow update, delete: if isAdmin(); 
       }
-
-      match /teams/{teamId} {
-        allow write: if isAdmin();
-      }
-
-      match /otrClaims/{otr} {
-        allow create: if true;
-        allow update, delete: if isAdmin();
-      }
-    }
-
-    match /publicAnalytics/{tid} {
-      allow write: if isAdmin();
-    }
-
-    match /matchSecrets/{mid} {
-      allow write: if isAdmin();
     }
 
     // ===============================================================
-    // 4. Registrations
+    // 3. REGISTRATIONS (Public Create, Admin Manage)
     // ===============================================================
     match /registrations/{rid} {
       allow create: if isValidRegistration(request.resource.data);
-      allow update, delete: if isAdmin();
+      allow read, update, delete: if isAdmin(); // Only admins can see team details
     }
 
     // ===============================================================
-    // 5. Admin Requests & User Profiles
+    // 4. PRIVATE SECRETS (Strictly Admin/Creator)
     // ===============================================================
+    match /matchSecrets/{mid} {
+      allow read, write: if isAdmin(); // Passwords are hidden from public
+    }
+
     match /adminRequests/{uid} {
       allow create: if signedIn() && request.auth.uid == uid;
+      allow read: if isCreator() || (signedIn() && request.auth.uid == uid);
       allow update, delete: if isCreator();
     }
 
     match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
       allow write: if (signedIn() && request.auth.uid == uid) || isCreator();
     }
 
-    // ===============================================================
-    // 6. Contact Messages
-    // ===============================================================
     match /contactMessages/{id} {
       allow create: if true;
-      allow write: if isCreator();
+      allow read, write: if isCreator();
+    }
+    
+    // Deny everything else
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
