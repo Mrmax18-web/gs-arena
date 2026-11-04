@@ -62,17 +62,25 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     return activeGlobalGameId || 'BGMI';
   });
 
-  // Filter open tournaments for the selected game
+  // Filter open/active tournaments for the selected game
   const openTournamentsForGame = useMemo(() => {
-    return tournaments.filter((t) => t.registrationOpen && t.gameId === selectedGame);
+    return tournaments.filter(
+      (t) =>
+        (t.registrationOpen || ['live', 'active', 'upcoming'].includes(t.status as string)) &&
+        t.gameId === selectedGame
+    );
   }, [tournaments, selectedGame]);
 
   // Tournament ID state
   const [tournamentId, setTournamentId] = useState<string>(() => {
-    if (initialTournament && initialTournament.registrationOpen) {
+    if (initialTournament && (initialTournament.registrationOpen || ['live', 'active', 'upcoming'].includes(initialTournament.status as string))) {
       return initialTournament.id;
     }
-    const matching = tournaments.find((t) => t.registrationOpen && t.gameId === selectedGame);
+    const matching = tournaments.find(
+      (t) =>
+        (t.registrationOpen || ['live', 'active', 'upcoming'].includes(t.status as string)) &&
+        t.gameId === selectedGame
+    );
     return matching?.id || '';
   });
 
@@ -80,7 +88,11 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   const handleGameSelect = (newGameId: GameId) => {
     setSelectedGame(newGameId);
     setGlobalGameId(newGameId);
-    const available = tournaments.filter((t) => t.registrationOpen && t.gameId === newGameId);
+    const available = tournaments.filter(
+      (t) =>
+        (t.registrationOpen || ['live', 'active', 'upcoming'].includes(t.status as string)) &&
+        t.gameId === newGameId
+    );
     if (available.length > 0) {
       setTournamentId(available[0].id);
     } else {

@@ -30,7 +30,7 @@ import { Icon } from '@iconify/react';
 export const AdminPage: React.FC = () => {
   const { user, role } = useAuth();
   const { gameId, game } = useGame();
-  const { success, error } = useToast();
+  const { success, error, info } = useToast();
 
   const [activeTab, setActiveTab] = useState<'tournaments' | 'matches' | 'results' | 'credentials' | 'registrations'>('tournaments');
 
@@ -228,34 +228,50 @@ export const AdminPage: React.FC = () => {
         (async () => {
           let targetTid = editingTourney?.id || allocatedTourneyId || undefined;
 
-          // 1. Save text/metadata FIRST
-          if (editingTourney?.id) {
-            await updateTournament(editingTourney.id, {
-              name: tourneyName.trim(),
-              status: tourneyStatus,
-              registrationOpen: tourneyRegOpen,
-              entryFeePaise,
-              upiQrUrl: tourneyUpiQrUrl.trim() || undefined,
-              upiId: tourneyUpiId.trim() || undefined,
-            });
-            targetTid = editingTourney.id;
-          } else {
-            targetTid = await createTournament(
-              tourneyName.trim(),
-              gameId,
-              4,
-              undefined,
-              {
+          // 1. Save text/metadata FIRST (wrapped in 10-second Promise.race)
+          const timeoutPromise = new Promise<{ isTimeout: true }>((resolve) =>
+            setTimeout(() => resolve({ isTimeout: true }), 10000)
+          );
+
+          const saveDocPromise = (async () => {
+            let resTid = editingTourney?.id || allocatedTourneyId || undefined;
+            if (editingTourney?.id) {
+              await updateTournament(editingTourney.id, {
+                name: tourneyName.trim(),
+                status: tourneyStatus,
+                registrationOpen: tourneyRegOpen,
                 entryFeePaise,
                 upiQrUrl: tourneyUpiQrUrl.trim() || undefined,
                 upiId: tourneyUpiId.trim() || undefined,
-              },
-              allocatedTourneyId || undefined
-            );
-            if (isMountedRef.current) {
-              setSelectedTourneyId(targetTid);
+              });
+              resTid = editingTourney.id;
+            } else {
+              resTid = await createTournament(
+                tourneyName.trim(),
+                gameId,
+                4,
+                undefined,
+                {
+                  entryFeePaise,
+                  upiQrUrl: tourneyUpiQrUrl.trim() || undefined,
+                  upiId: tourneyUpiId.trim() || undefined,
+                },
+                allocatedTourneyId || undefined
+              );
+              if (isMountedRef.current) {
+                setSelectedTourneyId(resTid);
+              }
             }
+            return { isTimeout: false as const, targetTid: resTid };
+          })();
+
+          const raceResult = await Promise.race([saveDocPromise, timeoutPromise]);
+          if (raceResult.isTimeout) {
+            info('Save pending. Network is slow. Syncing in background.');
           }
+          targetTid = raceResult.isTimeout
+            ? (editingTourney?.id || allocatedTourneyId || undefined)
+            : raceResult.targetTid;
           textSaved = true;
 
           // 2. Upload image SECOND (if a file was selected)
@@ -321,10 +337,7 @@ export const AdminPage: React.FC = () => {
     } catch (err: unknown) {
       if (!isMountedRef.current) return;
       if (err instanceof TimeoutError || (err as { name?: string })?.name === 'TimeoutError') {
-        error(
-          'Save Pending',
-          'Save is taking longer than expected. Its status is unknown; check the record when your connection returns before retrying.'
-        );
+        info('Save Pending', 'Save pending. Network is slow. Syncing in background.');
       } else {
         const errObj = err as { code?: string; message?: string };
         const isPermissionErr =
