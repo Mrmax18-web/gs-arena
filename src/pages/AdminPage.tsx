@@ -26,9 +26,16 @@ import { isAdmin } from '../lib/permissions';
 import { where, limit } from 'firebase/firestore';
 import { Icon } from '@iconify/react';
 
-/** Strips undefined values from an object before Firestore writes */
-const cleanData = <T extends Record<string, unknown>>(obj: T): Partial<T> =>
-  Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as Partial<T>;
+/** Strict payload sanitizer that deletes undefined, null, or empty string fields before Firestore writes */
+const sanitizePayload = (data: any) => {
+  const clean = { ...data };
+  Object.keys(clean).forEach((key) => {
+    if (clean[key] === undefined || clean[key] === null || clean[key] === '') {
+      delete clean[key];
+    }
+  });
+  return clean;
+};
 
 
 export const AdminPage: React.FC = () => {
@@ -205,6 +212,35 @@ export const AdminPage: React.FC = () => {
     setTourneyModalOpen(true);
   };
 
+  /** Helper to sanitize and update an existing tournament document */
+  const handleUpdateTournament = async (id: string, payload: Record<string, any>) => {
+    const clean = sanitizePayload(payload);
+    return updateTournament(id, clean);
+  };
+
+  /** Helper to sanitize and create a new tournament document with explicit status and settings */
+  const handleCreateTournament = async (payload: {
+    name: string;
+    gameId: any;
+    rosterSize?: number;
+    entryFeePaise?: number;
+    upiQrUrl?: string;
+    upiId?: string;
+    status?: Tournament['status'];
+    registrationOpen?: boolean;
+    preallocatedId?: string;
+  }) => {
+    const clean = sanitizePayload(payload);
+    return createTournament(
+      clean.name!,
+      clean.gameId!,
+      clean.rosterSize || 4,
+      undefined,
+      clean,
+      clean.preallocatedId
+    );
+  };
+
   /**
    * Handles creating or updating a tournament document.
    * Write ordering:
@@ -240,28 +276,27 @@ export const AdminPage: React.FC = () => {
           const saveDocPromise = (async () => {
             let resTid = editingTourney?.id || allocatedTourneyId || undefined;
             if (editingTourney?.id) {
-              await updateTournament(editingTourney.id, cleanData({
+              await handleUpdateTournament(editingTourney.id, {
                 name: tourneyName.trim(),
                 status: tourneyStatus,
                 registrationOpen: tourneyRegOpen,
                 entryFeePaise,
-                upiQrUrl: tourneyUpiQrUrl.trim() || undefined,
-                upiId: tourneyUpiId.trim() || undefined,
-              }));
+                upiQrUrl: tourneyUpiQrUrl.trim(),
+                upiId: tourneyUpiId.trim(),
+              });
               resTid = editingTourney.id;
             } else {
-              resTid = await createTournament(
-                tourneyName.trim(),
+              resTid = await handleCreateTournament({
+                name: tourneyName.trim(),
                 gameId,
-                4,
-                undefined,
-                cleanData({
-                  entryFeePaise,
-                  upiQrUrl: tourneyUpiQrUrl.trim() || undefined,
-                  upiId: tourneyUpiId.trim() || undefined,
-                }),
-                allocatedTourneyId || undefined
-              );
+                rosterSize: 4,
+                entryFeePaise,
+                upiQrUrl: tourneyUpiQrUrl.trim(),
+                upiId: tourneyUpiId.trim(),
+                status: tourneyStatus,
+                registrationOpen: tourneyRegOpen,
+                preallocatedId: allocatedTourneyId || undefined,
+              });
               if (isMountedRef.current) {
                 setSelectedTourneyId(resTid);
               }
@@ -303,9 +338,9 @@ export const AdminPage: React.FC = () => {
 
               // 3. Patch the URL THIRD (guarded against late upload completion)
               if (!uploadTimedOut) {
-                await updateTournament(targetTid, cleanData({
+                await handleUpdateTournament(targetTid, {
                   upiQrUrl: uploadedUrl,
-                }));
+                });
                 if (isMountedRef.current) {
                   setTourneyUpiQrUrl(uploadedUrl);
                   setPendingQrFile(null);

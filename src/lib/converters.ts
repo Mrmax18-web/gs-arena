@@ -12,7 +12,7 @@ import { DEFAULT_BACKGROUND_CONFIG, DEFAULT_SYSTEM_CONFIG, DEFAULT_MVP_WEIGHTS }
 
 export const tournamentConverter: FirestoreDataConverter<Tournament> = {
   toFirestore(tournament: Tournament) {
-    return {
+    const raw: Record<string, any> = {
       name: tournament.name ?? '',
       gameId: tournament.gameId ?? 'BGMI',
       status: tournament.status ?? 'draft',
@@ -25,12 +25,18 @@ export const tournamentConverter: FirestoreDataConverter<Tournament> = {
         mvpWeights: tournament.scoringSnapshot?.mvpWeights ?? { ...DEFAULT_MVP_WEIGHTS },
       },
       entryFeePaise: typeof tournament.entryFeePaise === 'number' ? Math.floor(tournament.entryFeePaise) : 0,
-      upiQrUrl: tournament.upiQrUrl ?? null,
-      upiId: tournament.upiId ?? null,
+      upiQrUrl: tournament.upiQrUrl || undefined,
+      upiId: tournament.upiId || undefined,
       isDemo: Boolean(tournament.isDemo),
       createdAt: tournament.createdAt ?? new Date().toISOString(),
       updatedAt: tournament.updatedAt ?? new Date().toISOString(),
     };
+    Object.keys(raw).forEach((key) => {
+      if (raw[key] === undefined || raw[key] === null || raw[key] === '') {
+        delete raw[key];
+      }
+    });
+    return raw;
   },
   fromFirestore(snapshot: QueryDocumentSnapshot, options?: SnapshotOptions): Tournament {
     const data = snapshot.data(options);

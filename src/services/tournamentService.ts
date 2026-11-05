@@ -30,6 +30,19 @@ import { GameId } from '../types/game';
 import { CANONICAL_GAMES } from '../lib/constants';
 
 /**
+ * Sanitizes an object by deleting any keys whose value is undefined, null, or empty string.
+ */
+export const sanitizePayload = (data: any) => {
+  const clean = { ...data };
+  Object.keys(clean).forEach((key) => {
+    if (clean[key] === undefined || clean[key] === null || clean[key] === '') {
+      delete clean[key];
+    }
+  });
+  return clean;
+};
+
+/**
  * Pre-allocates a tournament document ID client-side prior to writing.
  * Guarantees idempotent creation retries by maintaining a stable document ID across attempts.
  */
@@ -48,7 +61,13 @@ export async function createTournament(
   gameId: GameId,
   rosterSize = 4,
   customSnapshot?: Partial<ScoringSnapshot>,
-  extra?: { entryFeePaise?: number; upiQrUrl?: string; upiId?: string },
+  extra?: {
+    entryFeePaise?: number;
+    upiQrUrl?: string;
+    upiId?: string;
+    status?: Tournament['status'];
+    registrationOpen?: boolean;
+  },
   preallocatedId?: string
 ): Promise<string> {
   if (!db) throw new Error('Firestore not initialized');
@@ -64,12 +83,12 @@ export async function createTournament(
   const colRef = collection(db, 'tournaments').withConverter(tournamentConverter);
   const newDoc = preallocatedId ? doc(colRef, preallocatedId) : doc(colRef);
 
-  const tournament: Tournament = {
+  const rawTournament: Record<string, any> = {
     id: newDoc.id,
     name,
     gameId,
-    status: 'upcoming',
-    registrationOpen: true,
+    status: extra?.status ?? 'upcoming',
+    registrationOpen: extra?.registrationOpen ?? true,
     rosterSize,
     scoringSnapshot: snapshot,
     entryFeePaise: extra?.entryFeePaise ?? 0,
@@ -79,6 +98,8 @@ export async function createTournament(
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
+
+  const tournament = sanitizePayload(rawTournament) as Tournament;
 
   await withTimeout(setDoc(newDoc, tournament), 10000, 'createTournament:setDoc');
   return newDoc.id;
@@ -94,14 +115,12 @@ export async function updateTournament(
 ): Promise<void> {
   if (!db) throw new Error('Firestore not initialized');
   const docRef = doc(db, 'tournaments', tid);
-  const clean = Object.fromEntries(
-    Object.entries(data).filter(([_, v]) => v !== undefined)
-  );
+  const clean = sanitizePayload({
+    ...data,
+    updatedAt: new Date().toISOString(),
+  });
   await withTimeout(
-    updateDoc(docRef, {
-      ...clean,
-      updatedAt: new Date().toISOString(),
-    }),
+    updateDoc(docRef, clean),
     10000,
     'updateTournament:updateDoc'
   );
