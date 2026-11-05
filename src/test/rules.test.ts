@@ -17,6 +17,8 @@ describe('Firestore Security Rules Policy Verification', () => {
 
   it('enforces public read access at root level or explicit tournament paths for cross-device synchronization', () => {
     expect(rulesContent).toMatch(/match \/tournaments\/\{tid\}\/\{document=\*\*\} \{[\s\S]*?allow read: if true;/);
+    expect(rulesContent).toMatch(/match \/tournaments\/\{tid\} \{[\s\S]*?allow read: if true;/);
+    expect(rulesContent).toMatch(/match \/matches\/\{mid\} \{[\s\S]*?allow read: if true;/);
   });
 
   it('hardcodes the creator email for bootstrap authority', () => {
@@ -40,8 +42,8 @@ describe('Firestore Security Rules Policy Verification', () => {
   });
 
   it('restricts tournaments and matches write to isAdmin()', () => {
-    expect(rulesContent).toMatch(/match \/tournaments\/\{tid\} \{\s*allow write: if isAdmin\(\);/);
-    expect(rulesContent).toMatch(/match \/matches\/\{mid\} \{\s*allow write: if isAdmin\(\);/);
+    expect(rulesContent).toMatch(/match \/tournaments\/\{tid\} \{[\s\S]*?allow write: if isAdmin\(\);/);
+    expect(rulesContent).toMatch(/match \/matches\/\{mid\} \{[\s\S]*?allow write: if isAdmin\(\);/);
   });
 
   it('allows public to create OTR claims for unique registration checking', () => {

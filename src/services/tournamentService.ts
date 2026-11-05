@@ -141,29 +141,33 @@ export async function createMatch(
 ): Promise<string> {
   if (!db) throw new Error('Firestore not initialized');
 
+  const cleanData = sanitizePayload(matchData);
+
   // Verify duplicate match number
   const matchesRef = collection(db, 'tournaments', tid, 'matches').withConverter(matchConverter);
-  const existingQ = query(matchesRef, where('matchNumber', '==', matchData.matchNumber), limit(50));
-  const snap = await getDocs(existingQ);
+  const existingQ = query(matchesRef, where('matchNumber', '==', cleanData.matchNumber), limit(50));
+  const snap = await withTimeout(getDocs(existingQ), 10000, 'createMatch:checkDuplicate');
   if (!snap.empty) {
-    throw new Error(`Match Number #${matchData.matchNumber} already exists in this tournament.`);
+    throw new Error(`Match Number #${cleanData.matchNumber} already exists in this tournament.`);
   }
 
   const newDoc = doc(matchesRef);
-  const match: Match = {
+  const rawMatch: Record<string, any> = {
     id: newDoc.id,
     tournamentId: tid,
-    matchNumber: matchData.matchNumber,
-    scheduledAt: matchData.scheduledAt,
-    map: matchData.map,
-    status: matchData.status || 'scheduled',
+    matchNumber: cleanData.matchNumber,
+    scheduledAt: cleanData.scheduledAt,
+    map: cleanData.map,
+    status: cleanData.status || 'scheduled',
     results: [],
     isDemo: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
 
-  await setDoc(newDoc, match);
+  const match = sanitizePayload(rawMatch) as Match;
+
+  await withTimeout(setDoc(newDoc, match), 10000, 'createMatch:setDoc');
   return newDoc.id;
 }
 
@@ -174,10 +178,15 @@ export async function updateMatch(
 ): Promise<void> {
   if (!db) throw new Error('Firestore not initialized');
   const matchRef = doc(db, 'tournaments', tid, 'matches', mid);
-  await updateDoc(matchRef, {
+  const clean = sanitizePayload({
     ...data,
     updatedAt: new Date().toISOString(),
   });
+  await withTimeout(
+    updateDoc(matchRef, clean),
+    10000,
+    'updateMatch:updateDoc'
+  );
 }
 
 export async function deleteMatch(tid: string, mid: string): Promise<void> {

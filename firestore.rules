@@ -46,12 +46,20 @@ service cloud.firestore {
     }
 
     // ===============================================================
-    // 2. TOURNAMENTS (Write)
+    // 2. TOURNAMENTS
     // ===============================================================
     match /tournaments/{tid} {
+      allow read: if true;
       allow write: if isAdmin();
-      match /matches/{mid} { allow write: if isAdmin(); }
-      match /teams/{teamId} { allow write: if isAdmin(); }
+     
+      match /matches/{mid} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+      match /teams/{teamId} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
       match /otrClaims/{otr} { 
         allow create: if true; 
         allow update, delete: if isAdmin(); 

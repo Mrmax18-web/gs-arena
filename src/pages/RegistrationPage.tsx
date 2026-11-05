@@ -8,15 +8,18 @@ import { RegistrationForm } from '../components/registration/RegistrationForm';
 import { Skeleton } from '../components/ui/Skeleton';
 import { ErrorState } from '../components/ui/ErrorState';
 import { ErrorBoundary } from '../components/layout/ErrorBoundary';
-import { limit, where } from 'firebase/firestore';
+import { limit, where, orderBy } from 'firebase/firestore';
 
 export const RegistrationPage: React.FC = () => {
   const { game } = useGame();
   const [searchParams] = useSearchParams();
   const tParam = searchParams.get('t') || undefined;
 
-  // Fetch all tournaments for the selected game, then filter in JS
-  const constraints = useMemo(() => [where('gameId', '==', game.id), limit(50)], [game.id]);
+  // Fetch all tournaments for the selected game with onSnapshot realtime listener, then filter in JS
+  const constraints = useMemo(
+    () => [where('gameId', '==', game.id), orderBy('createdAt', 'desc'), limit(20)],
+    [game.id]
+  );
   const {
     data: tournaments,
     loading,
@@ -24,7 +27,11 @@ export const RegistrationPage: React.FC = () => {
     refetch,
   } = useFirestoreCollection<Tournament>('tournaments', constraints, tournamentConverter);
 
-  const activeTournaments = tournaments.filter((t) => ['live', 'active', 'upcoming'].includes(t.status));
+  const activeTournaments = useMemo(() => {
+    return (tournaments || []).filter((t) =>
+      ['live', 'upcoming', 'active'].includes(t.status?.toLowerCase())
+    );
+  }, [tournaments]);
 
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">

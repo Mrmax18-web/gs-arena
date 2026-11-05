@@ -82,7 +82,7 @@ export function useFirestoreCollection<T>(
       setError(err instanceof Error ? err : new Error(String(err)));
       setLoading(false);
     }
-  }, [collectionPath, JSON.stringify(constraints.map((c) => c.type)), tick, enabled]);
+  }, [collectionPath, JSON.stringify(constraints), tick, enabled]);
 
   return { data, loading, error, refetch };
 }

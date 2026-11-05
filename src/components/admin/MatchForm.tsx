@@ -94,7 +94,18 @@ export const MatchForm: React.FC<MatchFormProps> = ({
     setMaxAccessibleStep((m) => Math.max(m, 2));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  /** Removes any undefined, null, or empty string fields before Firestore operations */
+  const sanitizePayload = (data: any) => {
+    const clean = { ...data };
+    Object.keys(clean).forEach((key) => {
+      if (clean[key] === undefined || clean[key] === null || clean[key] === '') {
+        delete clean[key];
+      }
+    });
+    return clean;
+  };
+
+  const handlePublishMatch = async (e: React.FormEvent) => {
     e.preventDefault();
     setStepError(null);
 
@@ -114,32 +125,46 @@ export const MatchForm: React.FC<MatchFormProps> = ({
 
     setSubmitting(true);
     try {
-      if (match?.id) {
-        await updateMatch(tournamentId, match.id, {
-          matchNumber: val.data.matchNumber,
-          scheduledAt: val.data.scheduledAt,
-          map: val.data.map,
-          status: val.data.status,
-        });
-        success('Match Updated', `Match #${val.data.matchNumber} has been updated.`);
-      } else {
-        await createMatch(tournamentId, {
-          matchNumber: val.data.matchNumber,
-          scheduledAt: val.data.scheduledAt,
-          map: val.data.map,
-          status: val.data.status,
-        });
-        success('Match Created', `Match #${val.data.matchNumber} has been scheduled.`);
-      }
+      const payload = sanitizePayload({
+        matchNumber: val.data.matchNumber,
+        scheduledAt: val.data.scheduledAt,
+        map: val.data.map,
+        status: val.data.status,
+      });
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error('Match publishing timed out after 10 seconds. Network slow or offline.')),
+          10000
+        )
+      );
+
+      const writePromise = (async () => {
+        if (match?.id) {
+          await updateMatch(tournamentId, match.id, payload);
+          return { isUpdate: true };
+        } else {
+          await createMatch(tournamentId, payload);
+          return { isUpdate: false };
+        }
+      })();
+
+      const result = await Promise.race([writePromise, timeoutPromise]);
+      success(
+        result.isUpdate ? 'Match Updated' : 'Match Published',
+        `Match #${val.data.matchNumber} (${val.data.status.toUpperCase()}) published successfully.`
+      );
       onSuccess();
     } catch (err: any) {
-      const msg = err?.message || 'Could not save match.';
+      const msg = err?.message || 'Could not publish match.';
       setStepError(msg);
-      error('Save Failed', msg);
+      error('Publish Failed', msg);
     } finally {
       setSubmitting(false);
     }
   };
+
+  const handleSubmit = handlePublishMatch;
 
   return (
     <GlassCard strong className="p-6 text-left">
