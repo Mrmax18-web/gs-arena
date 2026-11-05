@@ -27,21 +27,16 @@ export const AppLayout: React.FC = () => {
 
   return (
     <div className="relative min-h-screen bg-[#050505] text-white overflow-hidden flex flex-col">
-      {/* Pure CSS Cosmic Background (non-blocking, high performance) */}
-      <div className="fixed inset-0 pointer-events-none z-[-1] overflow-hidden" aria-hidden="true">
-        {/* Deep cosmic radial gradient layers */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-red-900/20 via-black to-black" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,_var(--tw-gradient-stops))] from-red-950/25 via-[#050505]/80 to-[#050505]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,_rgba(220,38,38,0.08)_0%,_transparent_60%)]" />
-
-        {/* Subtle animated cosmic dust/stars */}
-        <div className="absolute inset-0 opacity-40 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:32px_32px] animate-pulse" />
-        <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#ff4444_1.5px,transparent_1.5px)] [background-size:64px_64px]" />
-
-        {/* Cosmic nebula glow orbs */}
-        <div className="absolute -top-32 -left-32 w-96 h-96 bg-red-600/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-red-900/10 rounded-full blur-3xl" />
-      </div>
+      {/* Fixed Cosmic Background Image */}
+      <div
+        className="fixed inset-0 z-[-1] bg-[url('/cosmic-bg.jpg')] bg-cover bg-center opacity-60 pointer-events-none"
+        aria-hidden="true"
+      />
+      {/* Ambient gradient overlay for enhanced readability */}
+      <div
+        className="fixed inset-0 z-[-1] bg-gradient-to-b from-black/50 via-black/30 to-black/80 pointer-events-none"
+        aria-hidden="true"
+      />
 
       {/* 2. Top notification banner if Firebase env vars are not configured */}
       {!configured && (

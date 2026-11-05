@@ -8,7 +8,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Agency FB"', 'Teko', 'Oswald', 'sans-serif'],
+        sans: ['Inter', 'sans-serif'],
       },
       colors: {
         primary: {
