@@ -10,7 +10,7 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, helperText, leftIcon, rightIcon, id, className = '', ...props }, ref) => {
+  ({ label, error, helperText, leftIcon, rightIcon, id, className = '', onFocus, ...props }, ref) => {
     const generatedId = useId();
     const inputId = id || generatedId;
 
@@ -34,11 +34,13 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             aria-describedby={error ? `${inputId}-error` : helperText ? `${inputId}-helper` : undefined}
             onFocus={(e) => {
               try {
-                e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                if (typeof e.currentTarget?.scrollIntoView === 'function') {
+                  e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
               } catch {
                 // Ignore
               }
-              props.onFocus?.(e);
+              onFocus?.(e);
             }}
             className={`w-full rounded-xl border bg-white/70 dark:bg-black/20 px-3.5 py-2.5 text-base text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 backdrop-blur-md transition-all duration-200 focus:border-brand-500 focus:bg-white dark:focus:bg-black/40 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-50 ${
               leftIcon ? 'pl-10' : ''
