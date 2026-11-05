@@ -105,6 +105,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   // Stepper state
   const [currentStep, setCurrentStep] = useState(0);
   const [maxAccessibleStep, setMaxAccessibleStep] = useState(0);
+  const [copiedUpi, setCopiedUpi] = useState(false);
 
   // Form fields: Team & Leader
   const [teamName, setTeamName] = useState('');
@@ -233,6 +234,15 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     if (paymentScreenshotUrl) {
       await deleteStorageFile(paymentScreenshotUrl);
       setPaymentScreenshotUrl('');
+    }
+  };
+
+  const handleCopyUpi = () => {
+    if (selectedTournament?.upiId) {
+      navigator.clipboard.writeText(selectedTournament.upiId);
+      setCopiedUpi(true);
+      setTimeout(() => setCopiedUpi(false), 2000);
+      success('UPI ID Copied', 'UPI ID copied to clipboard.');
     }
   };
 
@@ -746,34 +756,50 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                   </div>
                 </div>
                 {selectedTournament?.upiId && (
-                  <div className="text-xs">
-                    <span className="text-slate-400 block font-medium">Official UPI ID:</span>
-                    <span className="font-mono font-bold text-amber-500 select-all">
-                      {selectedTournament.upiId}
-                    </span>
+                  <div className="text-xs bg-black/30 px-3 py-2 rounded-lg border border-amber-500/30 flex items-center gap-3">
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold">Official UPI ID</span>
+                      <span className="font-mono font-bold text-amber-400 select-all text-sm">
+                        {selectedTournament.upiId}
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCopyUpi}
+                      className="text-xs text-amber-400 hover:text-amber-300 px-2 py-1 h-auto"
+                      title="Copy UPI ID"
+                    >
+                      <Icon icon={copiedUpi ? 'solar:check-circle-bold' : 'solar:copy-bold'} className="mr-1 text-sm" />
+                      {copiedUpi ? 'Copied' : 'Copy'}
+                    </Button>
                   </div>
                 )}
               </div>
 
               {selectedTournament?.upiQrUrl && (
-                <div className="flex flex-col sm:flex-row items-center gap-4 pt-1">
-                  <div className="h-32 w-32 rounded-xl bg-white p-2 border border-slate-200 dark:border-white/20 shadow-md flex-shrink-0">
+                <div className="flex flex-col sm:flex-row items-center gap-5 pt-2 border-t border-amber-500/10">
+                  <div className="h-40 w-40 rounded-xl bg-white p-2 border-2 border-amber-500/40 shadow-xl flex-shrink-0 flex items-center justify-center">
                     <img
                       src={selectedTournament.upiQrUrl}
                       alt="Tournament UPI QR Code"
                       className="h-full w-full object-contain"
                     />
                   </div>
-                  <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1">
-                    <p className="font-bold text-slate-900 dark:text-white">
-                      Payment Instructions:
+                  <div className="text-xs text-slate-300 space-y-2 flex-1">
+                    <p className="font-bold text-white text-sm flex items-center gap-1.5">
+                      <Icon icon="solar:qr-code-bold" className="text-amber-400 text-base" />
+                      Scan & Pay with Any UPI App
                     </p>
-                    <p>1. Scan the UPI QR code above with any UPI app (GPay, PhonePe, Paytm).</p>
-                    <p>
-                      2. Pay the exact entry fee of <strong className="text-amber-500">₹{entryFeeINR.toFixed(2)}</strong>.
+                    <p className="text-slate-400 leading-relaxed">
+                      Use Google Pay, PhonePe, Paytm, BHIM, or any banking app to scan this QR code directly.
                     </p>
-                    <p>
-                      3. Note down the <strong>UTR / Reference (OTR)</strong> from your payment receipt and upload the screenshot proof below.
+                    <p className="text-slate-200">
+                      Amount to transfer: <strong className="text-amber-400 font-bold">₹{entryFeeINR.toFixed(2)}</strong>
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      After payment, enter your 12-digit <strong>UTR / Reference (OTR)</strong> number and upload the confirmation screenshot below.
                     </p>
                   </div>
                 </div>
