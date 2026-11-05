@@ -303,9 +303,9 @@ export const AdminPage: React.FC = () => {
 
               // 3. Patch the URL THIRD (guarded against late upload completion)
               if (!uploadTimedOut) {
-                await updateTournament(targetTid, {
+                await updateTournament(targetTid, cleanData({
                   upiQrUrl: uploadedUrl,
-                });
+                }));
                 if (isMountedRef.current) {
                   setTourneyUpiQrUrl(uploadedUrl);
                   setPendingQrFile(null);
@@ -374,24 +374,35 @@ export const AdminPage: React.FC = () => {
   const handleConfirmDeleteTourney = async () => {
     if (!deleteTourneyId) return;
     setIsDeleting(true);
+    const tid = deleteTourneyId;
     try {
-      await deleteTournament(deleteTourneyId);
+      const timeoutPromise = new Promise<{ isTimeout: true }>((resolve) =>
+        setTimeout(() => resolve({ isTimeout: true }), 5000)
+      );
+      const deletePromise = deleteTournament(tid).then(() => ({ isTimeout: false as const }));
+      const result = await Promise.race([deletePromise, timeoutPromise]);
+
       if (isMountedRef.current) {
-        success('Tournament Deleted', 'Tournament removed.');
+        if (result.isTimeout) {
+          if (typeof info === 'function') {
+            info('Delete is taking longer than expected. Syncing in background.');
+          } else if (typeof error === 'function') {
+            error('Delete Pending', 'Delete is taking longer than expected. Syncing in background.');
+          }
+        } else {
+          success('Tournament Deleted', 'Tournament removed.');
+        }
         refetchTournaments();
-        setDeleteTourneyId(null);
       }
     } catch (err: any) {
-      if (!isMountedRef.current) return;
-      const isTimeout = err?.name === 'TimeoutError';
-      if (isTimeout) {
-        info('Delete may still be processing. Refresh to verify.');
-      } else {
+      if (isMountedRef.current) {
         error('Delete Failed', err?.message || 'Failed to delete tournament.');
       }
-      setDeleteTourneyId(null);
     } finally {
-      if (isMountedRef.current) setIsDeleting(false);
+      if (isMountedRef.current) {
+        setDeleteTourneyId(null);
+        setIsDeleting(false);
+      }
     }
   };
 

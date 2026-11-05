@@ -94,9 +94,12 @@ export async function updateTournament(
 ): Promise<void> {
   if (!db) throw new Error('Firestore not initialized');
   const docRef = doc(db, 'tournaments', tid);
+  const clean = Object.fromEntries(
+    Object.entries(data).filter(([_, v]) => v !== undefined)
+  );
   await withTimeout(
     updateDoc(docRef, {
-      ...data,
+      ...clean,
       updatedAt: new Date().toISOString(),
     }),
     10000,
@@ -108,7 +111,7 @@ export async function deleteTournament(tid: string): Promise<void> {
   if (!db) throw new Error('Firestore not initialized');
   await withTimeout(
     deleteDoc(doc(db, 'tournaments', tid)),
-    10000,
+    5000,
     'deleteTournament:deleteDoc'
   );
 }
