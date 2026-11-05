@@ -30,17 +30,6 @@ import { GameId } from '../types/game';
 import { CANONICAL_GAMES } from '../lib/constants';
 
 /**
- * Removes any keys whose value is undefined to prevent Firestore serialization errors.
- */
-export const sanitizePayload = <T extends Record<string, any>>(data: T): T => {
-  const cleanData = { ...data };
-  Object.keys(cleanData).forEach((key) => {
-    if (cleanData[key] === undefined) delete cleanData[key];
-  });
-  return cleanData;
-};
-
-/**
  * Pre-allocates a tournament document ID client-side prior to writing.
  * Guarantees idempotent creation retries by maintaining a stable document ID across attempts.
  */
@@ -91,8 +80,7 @@ export async function createTournament(
     updatedAt: new Date().toISOString(),
   };
 
-  const cleanTournament = sanitizePayload(tournament as Record<string, any>);
-  await withTimeout(setDoc(newDoc, cleanTournament as Tournament), 10000, 'createTournament:setDoc');
+  await withTimeout(setDoc(newDoc, tournament), 10000, 'createTournament:setDoc');
   return newDoc.id;
 }
 
@@ -106,12 +94,11 @@ export async function updateTournament(
 ): Promise<void> {
   if (!db) throw new Error('Firestore not initialized');
   const docRef = doc(db, 'tournaments', tid);
-  const cleanData = sanitizePayload({
-    ...data,
-    updatedAt: new Date().toISOString(),
-  });
   await withTimeout(
-    updateDoc(docRef, cleanData),
+    updateDoc(docRef, {
+      ...data,
+      updatedAt: new Date().toISOString(),
+    }),
     10000,
     'updateTournament:updateDoc'
   );
@@ -119,7 +106,11 @@ export async function updateTournament(
 
 export async function deleteTournament(tid: string): Promise<void> {
   if (!db) throw new Error('Firestore not initialized');
-  await deleteDoc(doc(db, 'tournaments', tid));
+  await withTimeout(
+    deleteDoc(doc(db, 'tournaments', tid)),
+    10000,
+    'deleteTournament:deleteDoc'
+  );
 }
 
 export async function createMatch(
@@ -169,7 +160,11 @@ export async function updateMatch(
 
 export async function deleteMatch(tid: string, mid: string): Promise<void> {
   if (!db) throw new Error('Firestore not initialized');
-  await deleteDoc(doc(db, 'tournaments', tid, 'matches', mid));
+  await withTimeout(
+    deleteDoc(doc(db, 'tournaments', tid, 'matches', mid)),
+    10000,
+    'deleteMatch:deleteDoc'
+  );
 }
 
 /**

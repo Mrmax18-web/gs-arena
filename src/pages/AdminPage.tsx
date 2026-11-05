@@ -13,7 +13,7 @@ import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
 import { withTimeout, TimeoutError } from '../lib/timeout';
-import { createTournament, updateTournament, deleteTournament, deleteMatch, preallocateTournamentId, sanitizePayload } from '../services/tournamentService';
+import { createTournament, updateTournament, deleteTournament, deleteMatch, preallocateTournamentId } from '../services/tournamentService';
 import { MatchForm } from '../components/admin/MatchForm';
 import { ResultsEditor } from '../components/admin/ResultsEditor';
 import { RoomCredentialsForm } from '../components/admin/RoomCredentialsForm';
@@ -25,6 +25,10 @@ import { useAuth } from '../context/AuthContext';
 import { isAdmin } from '../lib/permissions';
 import { where, limit } from 'firebase/firestore';
 import { Icon } from '@iconify/react';
+
+/** Strips undefined values from an object before Firestore writes */
+const cleanData = <T extends Record<string, unknown>>(obj: T): Partial<T> =>
+  Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as Partial<T>;
 
 
 export const AdminPage: React.FC = () => {
@@ -236,17 +240,14 @@ export const AdminPage: React.FC = () => {
           const saveDocPromise = (async () => {
             let resTid = editingTourney?.id || allocatedTourneyId || undefined;
             if (editingTourney?.id) {
-              await updateTournament(
-                editingTourney.id,
-                sanitizePayload({
-                  name: tourneyName.trim(),
-                  status: tourneyStatus,
-                  registrationOpen: tourneyRegOpen,
-                  entryFeePaise,
-                  upiQrUrl: tourneyUpiQrUrl.trim() || undefined,
-                  upiId: tourneyUpiId.trim() || undefined,
-                })
-              );
+              await updateTournament(editingTourney.id, cleanData({
+                name: tourneyName.trim(),
+                status: tourneyStatus,
+                registrationOpen: tourneyRegOpen,
+                entryFeePaise,
+                upiQrUrl: tourneyUpiQrUrl.trim() || undefined,
+                upiId: tourneyUpiId.trim() || undefined,
+              }));
               resTid = editingTourney.id;
             } else {
               resTid = await createTournament(
@@ -254,7 +255,7 @@ export const AdminPage: React.FC = () => {
                 gameId,
                 4,
                 undefined,
-                sanitizePayload({
+                cleanData({
                   entryFeePaise,
                   upiQrUrl: tourneyUpiQrUrl.trim() || undefined,
                   upiId: tourneyUpiId.trim() || undefined,
@@ -375,13 +376,22 @@ export const AdminPage: React.FC = () => {
     setIsDeleting(true);
     try {
       await deleteTournament(deleteTourneyId);
-      success('Tournament Deleted', 'Tournament removed.');
-      refetchTournaments();
-      setDeleteTourneyId(null);
+      if (isMountedRef.current) {
+        success('Tournament Deleted', 'Tournament removed.');
+        refetchTournaments();
+        setDeleteTourneyId(null);
+      }
     } catch (err: any) {
-      error('Delete Failed', err?.message || 'Failed to delete tournament.');
+      if (!isMountedRef.current) return;
+      const isTimeout = err?.name === 'TimeoutError';
+      if (isTimeout) {
+        info('Delete may still be processing. Refresh to verify.');
+      } else {
+        error('Delete Failed', err?.message || 'Failed to delete tournament.');
+      }
+      setDeleteTourneyId(null);
     } finally {
-      setIsDeleting(false);
+      if (isMountedRef.current) setIsDeleting(false);
     }
   };
 
@@ -394,13 +404,22 @@ export const AdminPage: React.FC = () => {
     setIsDeleting(true);
     try {
       await deleteMatch(activeTournament.id, deleteMatchId);
-      success('Match Deleted', 'Match removed from bracket.');
-      refetchMatches();
-      setDeleteMatchId(null);
+      if (isMountedRef.current) {
+        success('Match Deleted', 'Match removed from bracket.');
+        refetchMatches();
+        setDeleteMatchId(null);
+      }
     } catch (err: any) {
-      error('Delete Failed', err?.message || 'Failed to delete match.');
+      if (!isMountedRef.current) return;
+      const isTimeout = err?.name === 'TimeoutError';
+      if (isTimeout) {
+        info('Delete may still be processing. Refresh to verify.');
+      } else {
+        error('Delete Failed', err?.message || 'Failed to delete match.');
+      }
+      setDeleteMatchId(null);
     } finally {
-      setIsDeleting(false);
+      if (isMountedRef.current) setIsDeleting(false);
     }
   };
 
